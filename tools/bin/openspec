@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# 铁锤小队 · OpenSpec 离线启动器
+# 运行 tools/skills/openspec 下已预构建(node_modules + dist)的 CLI，无需联网。
+set -e
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLI="$DIR/../skills/openspec/bin/openspec.js"
+export OPENSPEC_TELEMETRY=0   # 关闭匿名遥测(本项目偏离线/私有)
+if [ ! -d "$DIR/../skills/openspec/dist" ]; then
+  echo "错误：OpenSpec 未构建(缺 dist/)。请在联网机执行：" >&2
+  echo "  cd tools/skills/openspec && npm install && node build.js" >&2
+  exit 1
+fi
+exec node "$CLI" "$@"

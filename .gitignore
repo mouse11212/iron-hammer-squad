@@ -1,0 +1,26 @@
+# ── 依赖 / 构建产物 ──
+**/node_modules/
+**/dist/
+**/build/
+
+# ── 离线工具包(大体积第三方 vendored 内容;按 tools/TOOLS.md 重建) ──
+# 仅排除重的 vendored 技能源与依赖;保留 TOOLS.md / install-offline.sh / bin/
+/tools/skills/
+
+# ── 机密 / 凭据(绝不入库) ──
+*.env
+.env
+.env.*
+*.pem
+*.key
+*token*
+*secret*
+.npmrc
+
+# ── 系统 / 编辑器 ──
+.DS_Store
+*.log
+.claude/settings.local.json
+
+# ── OpenSpec 运行缓存(如有) ──
+.openspec-cache/
