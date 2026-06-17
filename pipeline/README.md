@@ -5,8 +5,8 @@
 
 ## 当前状态（诚实标注）
 
-抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E0**——已抽取 M0–M2 验证过的：角色、质量门、共享 Guide、编排剧本。
-**尚未具备**：自动事件触发/`claude -p` 循环驱动（① Loop 层，待 M3/E3）。**现阶段流水线仍由 orchestrator（主 session）驱动**，本目录提供其消费的可复用组件。
+抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E3**——已抽取 M0–M2 的角色/质量门/Guide/编排剧本（E0），并新增 **① Loop 层第一块可运行引擎 `driver/`**（M3/E3：事件触发 + `claude -p` 循环驱动，已实跑验证：事件→驱动→真实 claude→状态外置→幂等可恢复）。
+**仍待完善**：driver 当前执行"按请求 prompt 调一次 claude"，把它接到完整内循环/多角色编排（让事件自动拉起 `workflows/` 全流程）是后续抽取目标。
 
 ## 结构（对应 V4 三层模型）
 
@@ -21,10 +21,23 @@ pipeline/
 │   └── review-agent.md
 ├── gates/         # ② Sensors / 质量门模板
 │   └── quality-gates.md
-└── workflows/     # 编排剧本
-    ├── inner-loop.md
-    └── orchestration-pwj.md
+├── workflows/     # 编排剧本
+│   ├── inner-loop.md
+│   └── orchestration-pwj.md
+└── driver/        # ① Loop 引擎(M3/E3)：事件触发 + claude -p 循环驱动
+    └── src/{types,state,queue,run-once,invoke,store,loop,bin-enqueue}.ts
 ```
+
+## driver/ 用法（① Loop 引擎）
+
+```bash
+cd pipeline/driver && npm install
+# 投递一个请求(= 触发事件)
+npm run enqueue -- <runtimeRoot> <id> <kind> "<prompt>"
+# 启动事件驱动循环(启动恢复 + drain + fs.watch 监听新投递)
+npm run drive -- <runtimeRoot>
+```
+状态外置在 `<runtimeRoot>/{queue,state,done,failed}/`（`**/.runtime/` 已 gitignore）；已 done 请求幂等跳过；崩溃时残留 running 启动时回收。
 
 ## 终极形态：可安装为 Claude Code 技能/插件（目标，持续完善）
 

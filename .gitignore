@@ -29,3 +29,6 @@
 
 # ── OpenSpec 运行缓存(如有) ──
 .openspec-cache/
+
+# 流水线运行时状态(队列/run-state,瞬态)
+**/.runtime/

@@ -17,7 +17,7 @@ orchestrator(主 session) 分解工作 → spawn workers 执行 → Judge 把关
 ## 已知限制与演进
 
 - **SendMessage 不可用**:无法续已结束的子 agent 会话 → 当前 must-fix 由 orchestrator 以集成者身份代修(注明域归属)。**M5/D9 第三方消息组件将支持真正路由回角色**(E5 抽取)。
-- **驱动方式**:当前 orchestrator 手动调度。**E3(M3)将引入事件触发 + `claude -p` 驱动**，把本剧本从"手动跑"变成"自动跑"——届时本剧本升级为可运行驱动的规格。
+- **驱动方式**:E3(M3)已落地 `driver/`(事件触发 + `claude -p` 循环驱动,实跑验证:事件→驱动→真实 claude→状态外置→幂等可恢复)。**现状**:driver 执行"按请求 prompt 调一次 claude";**下一步**:把 driver 的单步执行接到本剧本全流程(事件自动拉起 测试→开发→评审 多角色),实现真正的端到端自动编排。届时角色 spawn 由 driver 而非人工发起。
 
 ## 价值证据（M2-A）
 
