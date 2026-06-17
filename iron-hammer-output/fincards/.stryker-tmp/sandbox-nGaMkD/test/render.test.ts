@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { render } from '../src/render.js';
 import type { NewsItem } from '../src/types.js';

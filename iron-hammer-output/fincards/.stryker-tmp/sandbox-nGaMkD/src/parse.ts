@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { NewsItem } from './types.js';
 
