@@ -10,7 +10,7 @@ const fx = (name: string): string =>
 
 describe('parse (news-parse)', () => {
   it('解析正常多条 feed：字段齐全、source 为 Bloomberg', () => {
-    const items = parse(fx('bloomberg-markets.rss'));
+    const items = parse(fx('bloomberg-markets.rss'), 'Bloomberg');
     expect(items.length).toBe(30);
     const first = items[0]!;
     expect(typeof first.title).toBe('string');
@@ -23,7 +23,7 @@ describe('parse (news-parse)', () => {
   });
 
   it('空 feed（合法结构、无 item）返回 []', () => {
-    expect(parse(fx('empty-feed.rss'))).toEqual([]);
+    expect(parse(fx('empty-feed.rss'), 'Bloomberg')).toEqual([]);
   });
 
   it('缺 description 的 item：summary 为空字符串，其余正常', () => {
@@ -33,7 +33,7 @@ describe('parse (news-parse)', () => {
       '<link>https://www.bloomberg.com/news/articles/x</link>' +
       '<pubDate>Wed, 17 Jun 2026 04:20:03 GMT</pubDate>' +
       '</item></channel></rss>';
-    const items = parse(xml);
+    const items = parse(xml, 'Bloomberg');
     expect(items.length).toBe(1);
     expect(items[0]!.summary).toBe('');
     expect(items[0]!.title).toBe('No Desc');
@@ -47,15 +47,15 @@ describe('parse (news-parse)', () => {
       '<description>d</description>' +
       '<pubDate>Wed, 17 Jun 2026 04:20:03 GMT</pubDate>' +
       '</item></channel></rss>';
-    expect(parse(xml).length).toBe(1);
+    expect(parse(xml, 'Bloomberg').length).toBe(1);
   });
 
   it('畸形 XML 抛错且错误信息可识别', () => {
-    expect(() => parse(fx('malformed.xml'))).toThrow(/Invalid RSS XML/);
+    expect(() => parse(fx('malformed.xml'), 'Bloomberg')).toThrow(/Invalid RSS XML/);
   });
 
   it('首条 item 字段精确匹配 fixture（钉死字段映射）', () => {
-    const first = parse(fx('bloomberg-markets.rss'))[0]!;
+    const first = parse(fx('bloomberg-markets.rss'), 'Bloomberg')[0]!;
     expect(first.title).toBe('Iron Ore Sinks Back Below $100 as Abundant Supplies Hurt Outlook');
     expect(first.link).toBe(
       'https://www.bloomberg.com/news/articles/2026-06-17/iron-ore-sinks-back-below-100-as-abundant-supplies-hurt-outlook',
@@ -70,18 +70,18 @@ describe('parse (news-parse)', () => {
       '<description>only desc</description>' +
       '<pubDate>Wed, 17 Jun 2026 04:20:03 GMT</pubDate>' +
       '</item></channel></rss>';
-    const it0 = parse(xml)[0]!;
+    const it0 = parse(xml, 'Bloomberg')[0]!;
     expect(it0.title).toBe('');
     expect(it0.link).toBe('');
     expect(it0.summary).toBe('only desc');
   });
 
   it('缺 channel 的合法 rss 返回 []（钉死可选链防御）', () => {
-    expect(parse('<?xml version="1.0"?><rss version="2.0"></rss>')).toEqual([]);
+    expect(parse('<?xml version="1.0"?><rss version="2.0"></rss>', 'Bloomberg')).toEqual([]);
   });
 
   it('非 rss 根的合法 XML 返回 []（钉死 rss 可选链）', () => {
-    expect(parse('<?xml version="1.0"?><feed></feed>')).toEqual([]);
+    expect(parse('<?xml version="1.0"?><feed></feed>', 'Bloomberg')).toEqual([]);
   });
 
   it('缺 pubDate 的 item：pubDate 为 Invalid Date（覆盖 ?? 回退）', () => {
@@ -89,7 +89,7 @@ describe('parse (news-parse)', () => {
       '<?xml version="1.0"?><rss version="2.0"><channel><item>' +
       '<title>No Date</title><link>https://www.bloomberg.com/news/articles/nd</link>' +
       '<description>d</description></item></channel></rss>';
-    expect(Number.isNaN(parse(xml)[0]!.pubDate.getTime())).toBe(true);
+    expect(Number.isNaN(parse(xml, 'Bloomberg')[0]!.pubDate.getTime())).toBe(true);
   });
 
   it('纯数字标题保持字符串（钉死 parseTagValue=false）', () => {
@@ -98,8 +98,8 @@ describe('parse (news-parse)', () => {
       '<title>12345</title><link>https://www.bloomberg.com/news/articles/n</link>' +
       '<description>d</description><pubDate>Wed, 17 Jun 2026 04:20:03 GMT</pubDate>' +
       '</item></channel></rss>';
-    expect(typeof parse(xml)[0]!.title).toBe('string');
-    expect(parse(xml)[0]!.title).toBe('12345');
+    expect(typeof parse(xml, 'Bloomberg')[0]!.title).toBe('string');
+    expect(parse(xml, 'Bloomberg')[0]!.title).toBe('12345');
   });
 
   it('标题首尾空白被裁剪（钉死 trimValues=true）', () => {
@@ -108,6 +108,28 @@ describe('parse (news-parse)', () => {
       '<title>  Spaced Title  </title><link>https://www.bloomberg.com/news/articles/s</link>' +
       '<description>d</description><pubDate>Wed, 17 Jun 2026 04:20:03 GMT</pubDate>' +
       '</item></channel></rss>';
-    expect(parse(xml)[0]!.title).toBe('Spaced Title');
+    expect(parse(xml, 'Bloomberg')[0]!.title).toBe('Spaced Title');
+  });
+
+  it('source 按发布方传入：CNBC feed 的所有条目 source 为 CNBC（归源正确）', () => {
+    const cnbcLikeXml =
+      '<?xml version="1.0"?><rss version="2.0"><channel>' +
+      '<item>' +
+      '<title>Fed Holds Rates Steady</title>' +
+      '<link>https://www.cnbc.com/2026/06/17/fed-holds.html</link>' +
+      '<description>The Federal Reserve kept rates unchanged.</description>' +
+      '<pubDate>Wed, 17 Jun 2026 04:20:03 GMT</pubDate>' +
+      '</item>' +
+      '<item>' +
+      '<title>Oil Prices Climb</title>' +
+      '<link>https://www.cnbc.com/2026/06/17/oil-climbs.html</link>' +
+      '<description>Crude rose on supply concerns.</description>' +
+      '<pubDate>Wed, 17 Jun 2026 05:00:00 GMT</pubDate>' +
+      '</item>' +
+      '</channel></rss>';
+    const items = parse(cnbcLikeXml, 'CNBC');
+    expect(items.length).toBe(2);
+    expect(items.every((it) => it.source === 'CNBC')).toBe(true);
+    expect(items[0]!.title).toBe('Fed Holds Rates Steady');
   });
 });

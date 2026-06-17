@@ -11,11 +11,16 @@ import type { NewsItem } from './types.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const outPath = join(here, '..', 'dist', 'index.html');
 
-/** 要抓取的 Bloomberg topic feed。 */
-const FEEDS: { topic: string; url: string }[] = [
-  { topic: 'markets', url: 'https://feeds.bloomberg.com/markets/news.rss' },
-  { topic: 'economics', url: 'https://feeds.bloomberg.com/economics/news.rss' },
-  { topic: 'technology', url: 'https://feeds.bloomberg.com/technology/news.rss' },
+/** 要抓取的跨发布方 topic feed（含 Bloomberg×3 与 CNBC）。 */
+const FEEDS: { topic: string; url: string; source: string }[] = [
+  { topic: 'markets', url: 'https://feeds.bloomberg.com/markets/news.rss', source: 'Bloomberg' },
+  { topic: 'economics', url: 'https://feeds.bloomberg.com/economics/news.rss', source: 'Bloomberg' },
+  {
+    topic: 'technology',
+    url: 'https://feeds.bloomberg.com/technology/news.rss',
+    source: 'Bloomberg',
+  },
+  { topic: 'cnbc-top', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', source: 'CNBC' },
 ];
 
 interface SourceLog {
@@ -37,7 +42,7 @@ async function main(): Promise<void> {
   for (const feed of FEEDS) {
     try {
       const xml = await fetchFeed(feed.url);
-      const items = parse(xml);
+      const items = parse(xml, feed.source);
       sources.push(items);
       sourceLogs.push({ topic: feed.topic, status: 'ok', count: items.length });
     } catch (err) {

@@ -58,6 +58,8 @@
 
 > 到 M8/E8，`pipeline/` 即"给定需求 → 可运行、被实战验证过的 harness SDLC 流水线"。每批抽取后产物进入"可被下一里程碑修正"状态。
 
+> **打包目标(贯穿 E0–E8，持续完善)**：`pipeline/` 终极形态 = **可安装的 Claude Code 技能/插件**(角色 skills + gates + hooks + 编排驱动 + 入口命令 + `.claude-plugin/plugin.json`)。每次抽取顺带向"可安装插件结构"靠拢；E8 收口为可分发插件。参考 `tools/skills/`(superpowers/gstack)的插件形态。
+
 ## 排序原则
 
 1. **每个里程碑可独立演示且可短命快合**（→V4 §10）。

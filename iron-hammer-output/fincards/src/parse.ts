@@ -11,8 +11,9 @@ interface RawItem {
 /**
  * 纯函数：把 RSS XML 字符串解析为 NewsItem[]。
  * 无副作用、不发起网络请求；畸形 XML 抛错；空 feed 返回 []。
+ * `source` 为发布方名（如 'Bloomberg' / 'CNBC'），写入每条 NewsItem.source。
  */
-export function parse(xml: string): NewsItem[] {
+export function parse(xml: string, source: string): NewsItem[] {
   const valid = XMLValidator.validate(xml);
   if (valid !== true) {
     throw new Error(`Invalid RSS XML: ${valid.err.msg}`);
@@ -41,6 +42,6 @@ export function parse(xml: string): NewsItem[] {
     // Stryker disable next-line StringLiteral: 等价变异——缺 pubDate 时任何非法回退串经 new Date() 均得 Invalid Date，具体值不影响结果
     pubDate: new Date(it.pubDate ?? ''),
     summary: it.description ?? '',
-    source: 'Bloomberg',
+    source,
   }));
 }

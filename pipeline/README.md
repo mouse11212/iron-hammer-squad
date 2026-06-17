@@ -26,6 +26,12 @@ pipeline/
     └── orchestration-pwj.md
 ```
 
+## 终极形态：可安装为 Claude Code 技能/插件（目标，持续完善）
+
+`pipeline/` 的最终目标是**打包成一个 Claude Code 插件/技能集**——别人(或新项目)通过 marketplace/`.claude/` 安装后，即获得这条 harness SDLC 流水线(角色 skills + gates + hooks + 编排驱动 + 入口命令)。
+- 演进路径：现为可复用组件(markdown 模板)→ 随 E3+ 加入可运行驱动/hooks → 逐步具备 `.claude-plugin/plugin.json` + SKILL.md + commands 的插件结构。
+- 该目标**贯穿后续每次抽取持续完善**(参考本仓 `tools/skills/` 下 superpowers/gstack 的插件形态)。详见 backlog「抽取线 E」打包目标。
+
 ## 修正原则（抽取≠冻结）
 
 每个 artifact 头部标 **`验证来源: Mx`** 与 **`状态`**。后续里程碑的验证若推翻/加强某模式，**就地修正对应 artifact** 并更新验证来源。`pipeline/` 是活的流水线定义，不是一次性快照。

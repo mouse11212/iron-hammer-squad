@@ -8,6 +8,6 @@ export interface NewsItem {
   pubDate: Date;
   /** 官方摘要（来自 RSS description，可能为空字符串） */
   summary: string;
-  /** 来源，固定 "Bloomberg" */
+  /** 来源发布方名（如 "Bloomberg" / "CNBC"） */
   source: string;
 }
