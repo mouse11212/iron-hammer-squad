@@ -51,6 +51,6 @@
 
 ## 10. 追溯链与基线（M0 可度量种子）
 
-- [ ] 10.1 记录第一条追溯链：spec（本 change）→ 各测试文件 → 实现 commit（待 git 决策）
+- [x] 10.1 第一条追溯链：spec `fincards-m0-bloomberg-cards` → test（parse/filterToday/render.test.ts）→ commit `adbac4a`
 - [x] 10.2 记录本切片基线（四指标种子，见 `docs/plan/M0-retro-baseline.md`；gate≈1.7s、356 行、缺陷逃逸 0）
 - [x] 10.3 复盘：暴露 4 点 M1 候选约束（见 `docs/plan/M0-retro-baseline.md`）
