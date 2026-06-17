@@ -9,6 +9,12 @@ import {
 import { join } from 'node:path';
 import type { Request, RunState } from './types.js';
 
+// ⚠️ 决策 D9 边界(docs/plan/D9-message-component-decision.md):
+// 本文件队列仅在【单消费者】下安全(当前 driver = 单 orchestrator 驱动)。
+// `rename` 在 Linux 不是可靠的多消费者互斥锁——一旦多个进程并发从同一 queue/ 认领
+// 会双领。进入并行多消费者(M5/D9)时必须切【嵌入式 SQLite 队列(事务原子认领+WAL)】,
+// 排除 Inngest/Redis/NATS(对可分发 CC 插件太重)。
+
 /** 外置状态根目录下的子目录。 */
 export interface Store {
   queue: string;

@@ -71,7 +71,7 @@ Agent 出错 → 人工诊断根因 → 将修复编码进 Guide/Sensor/Gate →
 - **(A) 运行内协调层 = Claude Code 自身（默认，决策已定）。** Claude Code 原生稳定具备全部协调原语：subagents（隔离 context）、git worktree 隔离（`--worktree`）、Hooks（PreToolUse/SubagentStop 等 30+ 事件）、Skills（渐进披露）、MCP——与 Agent SDK 同引擎、被充分硬化（KB: topics/orchestrator-patterns，Claude Code 即 orchestrator）。**项目约束：Max 订阅 + 本地运行**——订阅制 rate limit 内用量含在月费内，不按 token 线性增长，是长跑多 agent **成本最可控**的路径。
 - **(B) 触发/循环层（① Loop 层，D4 事件触发）= 自建轻量触发器。** Claude Code **原生不具备**无人值守事件/定时触发（`/loop` 仅 session 内、退出即没）。故本地自建：**Hooks（运行内事件）+ 外部事件胶水 + `claude -p` 拉起运行**（本地 cron/文件监听即可，无需云端常驻）。把成本花在一次性触发胶水工程上，而非按 token/按 session-hour 的托管编排。Claude Code Routines（cloud cron）仅作未来 GA 后可选替代，当前为 research preview，不进默认路径。
 - **升级/替代路径（非默认，按需）**：**Agent SDK** 仅当需脱离 Claude Code UI 的编程式编排/嵌入服务时引入（纯 API token 计费）；**Managed Agents** 仅当需托管 scheduler + rubric 评分、且愿付 token + $0.08/session-hour 托管费时。
-- **task 依赖 / 消息路由（决策 D9 方向已定）**：不依赖实验性 Agent Teams 的 SendMessage（需 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`、**约 7× token**），改用**第三方消息组件**（封装为 MCP server，worker 用 subagents / `claude -p`）；按文末「D9 最小方案」渐进落地，推进中定档。基线先用 subagents + 外置 JSON 状态文件做 task 依赖。
+- **task 依赖 / 消息路由（决策 D9 已锁定）**：不依赖实验性 Agent Teams 的 SendMessage（需 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`、**约 7× token**）。**消息组件 = 嵌入式 SQLite 队列（better-sqlite3，事务原子认领 + WAL 崩溃恢复）封装为 stdio MCP server**；**排除 Inngest/Redis/NATS/pg-boss/BullMQ**（需常驻服务/外部 DB，对可分发 CC 插件太重）。**关键边界**：文件队列（driver 现状）仅**单消费者**安全（单 orchestrator 驱动）；一旦进入**并行多消费者**（多 agent 各自从同一队列认领，`rename` 在 Linux 非可靠互斥锁→双认领）必须切 SQLite。基线（单消费者）保留文件队列；并行（M5）切 SQLite-MCP。详见 `docs/plan/D9-message-component-decision.md`。
 - **采用 KB 三种编排模式命名并映射角色**（KB: topics/orchestrator-patterns）：
   - **Planner-Workers-Judge**：US/task 分解 → worker 领取执行 → judge 质量门 → 对应外/内循环主干。
   - **Adversarial Exploration**：多 agent 对抗性质疑彼此结论 → 用于评审 Agent、安全 Agent。
@@ -317,7 +317,7 @@ harness 的能力天花板，卡在"你是否说清了想要什么"（KB: questi
 | D6 | 覆盖率/变异分数等门禁阈值（产线标定） | 待定 | §4.6、§7、§10 |
 | D7 | 是否引入 DeerFlow | ✅ 已定：暂不引入，待场景出现再评估 | §3.1 |
 | D8 | 与《AI 时代 Git 分支管理》对齐多 worktree 集成策略 | ✅ 已定：§9 落地「驭手 8 条军规」（Trunk-Based + worktree 并行 + 集成分支兜底 + squash + AI 代码加严审查） | §9 |
-| D9 | agent 间 task 依赖 / 消息路由的实现 | 🔄 方向已定：**用第三方消息组件**（不依赖实验性 Agent Teams 的 7× token），推进中确立；按下方最小方案逐步尝试 | §3.1 |
+| D9 | agent 间 task 依赖 / 消息路由的实现 | ✅ 已定（2026-06-17 调研锁定）：**嵌入式 SQLite 队列（better-sqlite3，事务原子认领 + WAL 崩溃恢复）封装为 stdio MCP server**；**排除 Inngest/Redis/NATS/pg-boss**（需常驻服务/外部 DB，对可分发 CC 插件太重）。文件队列仅单消费者安全，**并行多消费者必须用 SQLite**。详见 `docs/plan/D9-message-component-decision.md` | §3.1 |
 
 > **已记录的项目约束**：编排层 = Claude Code 自身（运行内协调）+ 本地自建事件触发器（① Loop 层）；**Max 订阅 + 本地运行，暂不云端常驻**；SDK/Managed Agents 为按需升级路径。
 
