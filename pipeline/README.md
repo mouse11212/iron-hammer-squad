@@ -5,7 +5,7 @@
 
 ## 当前状态（诚实标注）
 
-抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E3**——已抽取 M0–M2 的角色/质量门/Guide/编排剧本（E0），并新增 **① Loop 层第一块可运行引擎 `driver/`**（M3/E3：事件触发 + `claude -p` 循环驱动，已实跑验证：事件→驱动→真实 claude→状态外置→幂等可恢复）。
+抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E4**——E0(角色/质量门/Guide/编排剧本)+ E3(`driver/` ① Loop 引擎:事件触发+claude -p,实跑验证)+ **E4(`metrics/` ② 可观测:harness 四指标 + 追溯链 + 看板,已在本仓真实采集)**。
 **仍待完善**：driver 当前执行"按请求 prompt 调一次 claude"，把它接到完整内循环/多角色编排（让事件自动拉起 `workflows/` 全流程）是后续抽取目标。
 
 ## 结构（对应 V4 三层模型）
@@ -24,9 +24,20 @@ pipeline/
 ├── workflows/     # 编排剧本
 │   ├── inner-loop.md
 │   └── orchestration-pwj.md
-└── driver/        # ① Loop 引擎(M3/E3)：事件触发 + claude -p 循环驱动
-    └── src/{types,state,queue,run-once,invoke,store,loop,bin-enqueue}.ts
+├── driver/        # ① Loop 引擎(M3/E3)：事件触发 + claude -p 循环驱动
+│   └── src/{types,state,run-once,invoke,store,loop,bin-enqueue}.ts
+└── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
+    ├── src/{types,compute,trace,board,collect,bin-report}.ts
+    └── data/{traces,defects}.json
 ```
+
+## metrics/ 用法（② 可观测）
+
+```bash
+cd pipeline/metrics && npm install && npm run report -- <repoRoot>
+# 采集 git churn + OpenSpec 归档计数 + traces/defects → 生成 <repoRoot>/docs/metrics/dashboard.md
+```
+四指标:Task Resolution Rate / Code Churn / Verification Tax / Defect Escape Rate。**无标准基线,需产线标定(V4 §7)**;未埋点项显示"待埋点"不伪造。
 
 ## driver/ 用法（① Loop 引擎）
 

@@ -1,0 +1,7 @@
+[
+  { "changeId": "fincards-m0-bloomberg-cards", "spec": "news-fetch/parse/filter-today/card-render", "tests": ["parse.test.ts", "filterToday.test.ts", "render.test.ts"], "commit": "adbac4a" },
+  { "changeId": "fincards-m1-mutation-gate", "spec": "mutation-gate", "tests": ["stryker mutation"], "commit": "1504b19" },
+  { "changeId": "fincards-m2a-multisource-aggregate", "spec": "news-aggregate", "tests": ["aggregate.test.ts"], "commit": "8606f79" },
+  { "changeId": "fincards-m2-crosspublisher", "spec": "news-parse (MODIFIED, 按源归属)", "tests": ["parse.test.ts (归源)"], "commit": "393d7c4" },
+  { "changeId": "pipeline-m3-event-driver", "spec": "event-driver", "tests": ["state.test.ts", "run-once.test.ts"], "commit": "7d30216" }
+]
