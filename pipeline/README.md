@@ -1,0 +1,41 @@
+# pipeline/ — 铁锤小队 Harness SDLC 流水线（最终交付物）
+
+> **这是本工程的最终产物**：一条 harness 级、可复用的 AI SDLC 流水线——给定需求，尽可能高质量稳定地完成开发。
+> 区别于 `iron-hammer-output/`（流水线**造出来的产品**，如 fincards）。本目录是**流水线本身**。
+
+## 当前状态（诚实标注）
+
+抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E0**——已抽取 M0–M2 验证过的：角色、质量门、共享 Guide、编排剧本。
+**尚未具备**：自动事件触发/`claude -p` 循环驱动（① Loop 层，待 M3/E3）。**现阶段流水线仍由 orchestrator（主 session）驱动**，本目录提供其消费的可复用组件。
+
+## 结构（对应 V4 三层模型）
+
+```
+pipeline/
+├── guides/        # ② 前馈 Guides：注入所有角色 agent 的共享约定
+│   └── agent-conventions.md
+├── roles/         # 角色 agent 提示模板（可复用，已脱 fincards 耦合）
+│   ├── product-clarify-agent.md
+│   ├── test-agent.md
+│   ├── dev-agent.md
+│   └── review-agent.md
+├── gates/         # ② Sensors / 质量门模板
+│   └── quality-gates.md
+└── workflows/     # 编排剧本
+    ├── inner-loop.md
+    └── orchestration-pwj.md
+```
+
+## 修正原则（抽取≠冻结）
+
+每个 artifact 头部标 **`验证来源: Mx`** 与 **`状态`**。后续里程碑的验证若推翻/加强某模式，**就地修正对应 artifact** 并更新验证来源。`pipeline/` 是活的流水线定义，不是一次性快照。
+
+## 怎么用（当前 E0）
+
+orchestrator 执行一个需求/US 时：
+1. 读 `guides/agent-conventions.md`，随每个角色 spawn 一并注入。
+2. 按 `workflows/inner-loop.md` + `workflows/orchestration-pwj.md` 调度角色。
+3. 各角色用 `roles/*.md` 作为 spawn 提示模板（填入具体规约/上下文）。
+4. 合并前过 `gates/quality-gates.md` 定义的门。
+
+> 路线：E3 起本目录将出现可运行的事件触发驱动，把上述"手动调度"逐步变成"自动跑"。
