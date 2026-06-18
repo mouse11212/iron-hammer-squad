@@ -21,16 +21,18 @@
 | M2 多角色编排 | ✅ 归档 | 需求澄清(B)+ 多源聚合(A,Bloomberg 多 topic)+ 跨发布方(CNBC);Planner-Workers-Judge 真 spawn 子 agent |
 | M3 事件驱动 | ✅ 归档 | `pipeline/driver/`:文件队列(事件)→claude -p→外置状态→幂等/恢复 |
 | M4 可观测 | ✅ 归档 | `pipeline/metrics/`:四指标+追溯链+看板;真实 dashboard |
+| M5-A 并行队列 | ✅ 归档 | `pipeline/driver/`:node:sqlite 事务原子认领队列 + N 路并行 worker + stdio MCP;4 进程抢 500 条零双领压测 |
 
-- **抽取线 E0–E4 已完成**(方案 A 边验证边抽取,产物可持续修正):`pipeline/` 现有 roles/gates/guides/workflows + driver(①)+ metrics(②)。
+- **抽取线 E0–E5(部分) 已完成**(方案 A 边验证边抽取,产物可持续修正):`pipeline/` 现有 roles/gates/guides/workflows + driver(①,含 M5-A 并发队列/并行驱动/MCP)+ metrics(②)。
 - **产品 fincards** 在 `iron-hammer-output/fincards/`:真四源聚合,TDD + 变异门 100%。
-- **SoT**:9 个 OpenSpec capability,M0–M4 change 全部归档。
-- **GitHub**:`mouse11212/iron-hammer-squad`(SSH 推送),最新 commit `937a078`。
+- **SoT**:10 个 OpenSpec capability(新增 concurrent-queue),M0–M5A change 全部归档。
+- **GitHub**:`mouse11212/iron-hammer-squad`(SSH 推送,无需 token)。
 
 ## 3. 下一步（立即可做）
 
-**M5 / E5:并行内循环 + D9 消息组件**。D9 已锁定=**嵌入式 SQLite 队列(better-sqlite3,事务原子认领+WAL)封装 stdio MCP**(排除 Inngest/Redis/NATS)。这会把 driver 从单消费者升级到并行多消费者。
-备选:先把 driver 接到完整多角色全流程(事件自动拉起 测试→开发→评审)。
+**M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 的另一半,M5-A 已交付消息组件)。
+备选:把并行 driver(`drive-parallel.ts`)接到完整多角色全流程(事件自动拉起 测试→开发→评审),取代当前"调一次 claude"。
+- D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 
 ## 4. 已锁定决策（速查;细节见 V4 §3.1 表 / docs/plan）
 
@@ -50,7 +52,8 @@ D1 HITL 签字全 BOSS · D3 内循环不强制重置(评估记录) · D4 事件
 - **OpenSpec**:命令需 `export PATH="$PWD/tools/bin:$PATH"`;工作区在 `docs/openspec/`,**根目录 `openspec` 软链勿删**(CLI 写死 `<root>/openspec`);遥测已在 wrapper 关。
 - **git**:**别用 `git add -A` 无脑全加**(曾卷入 Stryker `.stryker-tmp` 沙箱)。已 gitignore:node_modules/dist/.runtime/.stryker-tmp/tools(skills 大体积)。提交前查 `git ls-files | grep -E 'node_modules|.runtime|dist|stryker'` 应 0。推送走 **SSH**(无需 token)。
 - **claude -p**:`claude --print` 必须**关 stdin**(`stdio:['ignore',...]` 或 `< /dev/null`),否则等 stdin 挂死。
-- **文件队列**:`rename` 在 Linux **非多消费者互斥**,只单消费者安全;并行(M5)必换 SQLite。
+- **文件队列**:`rename` 在 Linux **非多消费者互斥**,只单消费者安全;并行已换 SQLite(M5-A,`queue-sqlite.ts`,保留文件队列为单消费者回退)。
+- **node:sqlite + vite/vitest**:新内置模块不在 vite 过时的 builtin 列表 → strip 成 `sqlite` 报 "Failed to load url sqlite",配置层 `external` 不灵。解法:`createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')`(运行时加载绕静态解析 + 保类型)。新 Node 内置遇旧工具链会复现此坑。
 - **变异测试**:杀不掉的存活变异若靠运行时偶然(如比较器 NaN)→ **根因重构实现为确定性结构**,而非堆测试;真等价变异用 `// Stryker disable next-line <M>: 理由`。
 - **多角色**:SendMessage 不可用,无法续已结束子 agent 会话 → must-fix 由 orchestrator 集成代修(注明域归属),真正路由回角色待 M5/D9。
 - **求真纪律**:不臆造无源数字;指标缺口写"待埋点"不伪造。
@@ -62,7 +65,7 @@ D1 HITL 签字全 BOSS · D3 内循环不强制重置(评估记录) · D4 事件
 - 架构宪法:`docs/requirements/铁锤小队-Harness工程构思-v4.md`(机制细节回查)
 - 北极星 PRD:`docs/requirements/铁锤小队-PRD-v1.md`
 - 路线/抽取线:`docs/plan/铁锤小队-能力backlog-v1.md`
-- 各里程碑复盘:`docs/plan/{M0-retro-baseline,M1-retro,M2A-retro,M2-crosspublisher-retro,M3-E3-retro,M4-E4-retro}.md`
+- 各里程碑复盘:`docs/plan/{M0-retro-baseline,M1-retro,M2A-retro,M2-crosspublisher-retro,M3-E3-retro,M4-E4-retro,M5A-retro}.md`
 - 关键决策:`docs/plan/D9-message-component-decision.md`
 - 最终产物:`pipeline/README.md`(roles/gates/guides/workflows/driver/metrics)
 - 可执行规约 SoT:`docs/openspec/specs/`(9 capability)+ `changes/archive/`

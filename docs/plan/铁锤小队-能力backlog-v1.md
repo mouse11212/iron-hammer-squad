@@ -51,7 +51,7 @@
 | **E0（now）** | M0–M2 已验证 | 角色定义(测试/开发/评审/产品澄清)、质量门模板(确定性 gate + 变异门)、共享约定 Guide、内循环与 Planner-Workers-Judge 编排剧本 |
 | E3 | M3 完成 | **事件触发 + `claude -p` 循环驱动**(① Loop 层第一块真正可运行的根目录引擎)、状态外置 |
 | E4 | M4 完成 | 追溯链/看板/四指标采集组件 |
-| E5 | M5 完成 | 消息组件(D9，**已锁定:嵌入式 SQLite 队列 + stdio MCP**,排除 Inngest/Redis/NATS)→ 支持并行多消费者(文件队列仅单消费者安全)、角色纠错路由回拥有域 |
+| E5 | M5 完成 | 消息组件(D9，**已锁定:嵌入式 SQLite 队列 + stdio MCP**,排除 Inngest/Redis/NATS)→ 支持并行多消费者(文件队列仅单消费者安全)、角色纠错路由回拥有域 · **✅ M5-A 已交付**:`pipeline/driver/` node:sqlite 原子认领队列 + 并行 worker + MCP(实现库 better-sqlite3→node:sqlite,BOSS 签字);⏭ M5-B 待做:worktree 隔离+集成分支+squash |
 | E6 | M6 完成 | NFR 门 / 安全门(OWASP/STRIDE/CodeQL)模板 |
 | E7 | M7 完成 | drift ASI 监控组件 |
 | E8 | M8 完成 | 自演进回灌(Steering Loop 自动化，带人类门禁) |

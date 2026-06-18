@@ -32,3 +32,7 @@
 
 # 流水线运行时状态(队列/run-state,瞬态)
 **/.runtime/
+# SQLite 队列文件及 WAL/SHM 旁文件(M5-A driver,瞬态运行产物)
+**/*.db
+**/*.db-wal
+**/*.db-shm

@@ -5,8 +5,8 @@
 
 ## 当前状态（诚实标注）
 
-抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E4**——E0(角色/质量门/Guide/编排剧本)+ E3(`driver/` ① Loop 引擎:事件触发+claude -p,实跑验证)+ **E4(`metrics/` ② 可观测:harness 四指标 + 追溯链 + 看板,已在本仓真实采集)**。
-**仍待完善**：driver 当前执行"按请求 prompt 调一次 claude"，把它接到完整内循环/多角色编排（让事件自动拉起 `workflows/` 全流程）是后续抽取目标。
+抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E5**——E0(角色/质量门/Guide/编排剧本)+ E3(`driver/` ① Loop 引擎:事件触发+claude -p)+ E4(`metrics/` ② 可观测:四指标+追溯链+看板)+ **E5(`driver/` 并行多消费者:`node:sqlite` 事务原子认领队列 + N 路并行 worker + stdio MCP 封装,多进程并发零双领已压测)**。
+**仍待完善**：driver 当前执行"按请求 prompt 调一次 claude"，把它接到完整内循环/多角色编排（让事件自动拉起 `workflows/` 全流程）是后续抽取目标；M5-B(worktree 隔离 + 集成分支 + squash)待做。
 
 ## 结构（对应 V4 三层模型）
 
@@ -24,8 +24,12 @@ pipeline/
 ├── workflows/     # 编排剧本
 │   ├── inner-loop.md
 │   └── orchestration-pwj.md
-├── driver/        # ① Loop 引擎(M3/E3)：事件触发 + claude -p 循环驱动
-│   └── src/{types,state,run-once,invoke,store,loop,bin-enqueue}.ts
+├── driver/        # ① Loop 引擎：事件触发 + claude -p 循环驱动
+│   └── src/
+│       ├── {types,state,run-once,invoke,store,loop,bin-enqueue}.ts  # M3/E3 单消费者(文件队列,回退路径)
+│       ├── queue-sqlite.ts     # M5-A/E5 嵌入式 SQLite 队列(node:sqlite,事务原子认领+WAL)
+│       ├── drive-parallel.ts   # M5-A/E5 N 路并行 worker pool(多消费者)
+│       └── mcp-server.ts       # M5-A/E5 stdio MCP 封装(enqueue/claim/ack/fail/status)
 └── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
     ├── src/{types,compute,trace,board,collect,bin-report}.ts
     └── data/{traces,defects}.json
@@ -49,6 +53,15 @@ npm run enqueue -- <runtimeRoot> <id> <kind> "<prompt>"
 npm run drive -- <runtimeRoot>
 ```
 状态外置在 `<runtimeRoot>/{queue,state,done,failed}/`（`**/.runtime/` 已 gitignore）；已 done 请求幂等跳过；崩溃时残留 running 启动时回收。
+
+**并行多消费者模式(M5-A,推荐用于 ≥2 并行内循环):**
+```bash
+# 并行 drain:N 路 worker 各自从 SQLite 队列原子认领,跑完即退
+npx tsx src/drive-parallel.ts <queue.db> <concurrency>
+# 或把队列暴露为 stdio MCP,供外部 agent 投递/认领
+npx tsx src/mcp-server.ts <queue.db>   # 工具:enqueue/claim/ack/fail/status
+```
+单消费者用文件队列(零依赖回退);**并行多消费者必须用 `queue-sqlite`**——`rename` 文件认领在多进程下会双领(D9)。SQLite 队列用单条 `UPDATE...RETURNING` 在写事务内原子认领,WAL + `busy_timeout` 承受并发(已用 4 进程抢 500 条压测零双领)。
 
 ## 终极形态：可安装为 Claude Code 技能/插件（目标，持续完善）
 

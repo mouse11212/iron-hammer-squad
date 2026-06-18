@@ -10,10 +10,11 @@ import { join } from 'node:path';
 import type { Request, RunState } from './types.js';
 
 // ⚠️ 决策 D9 边界(docs/plan/D9-message-component-decision.md):
-// 本文件队列仅在【单消费者】下安全(当前 driver = 单 orchestrator 驱动)。
-// `rename` 在 Linux 不是可靠的多消费者互斥锁——一旦多个进程并发从同一 queue/ 认领
-// 会双领。进入并行多消费者(M5/D9)时必须切【嵌入式 SQLite 队列(事务原子认领+WAL)】,
-// 排除 Inngest/Redis/NATS(对可分发 CC 插件太重)。
+// 本文件队列仅在【单消费者】下安全(M3 单 orchestrator 驱动)。
+// `rename` 在 Linux 不是可靠的多消费者互斥锁——多进程并发从同一 queue/ 认领会双领。
+// 【并行多消费者已落地 M5-A】:见 `queue-sqlite.ts`(node:sqlite 事务原子认领 + WAL)
+// + `drive-parallel.ts`(N 路并行 worker)+ `mcp-server.ts`(stdio MCP 封装)。
+// 本文件队列保留为单消费者回退路径(零依赖、与 M3 loop.ts 配套)。
 
 /** 外置状态根目录下的子目录。 */
 export interface Store {
