@@ -5,8 +5,8 @@
 
 ## 当前状态（诚实标注）
 
-抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E5**——E0(角色/质量门/Guide/编排剧本)+ E3(`driver/` ① Loop 引擎:事件触发+claude -p)+ E4(`metrics/` ② 可观测:四指标+追溯链+看板)+ **E5(`driver/` 并行多消费者:`node:sqlite` 事务原子认领队列 + N 路并行 worker + stdio MCP 封装,多进程并发零双领已压测)**。
-**仍待完善**：driver 当前执行"按请求 prompt 调一次 claude"，把它接到完整内循环/多角色编排（让事件自动拉起 `workflows/` 全流程）是后续抽取目标；M5-B(worktree 隔离 + 集成分支 + squash)待做。
+抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E5+**——E0(角色/质量门/Guide/编排剧本)+ E3(`driver/` ① Loop 引擎:事件触发+claude -p)+ E4(`metrics/` ② 可观测:四指标+追溯链+看板)+ E5(`driver/` 并行多消费者:`node:sqlite` 事务原子认领队列 + N 路并行 worker + stdio MCP)+ **inner-loop 自动编排(`driver/` 把 `kind='inner-loop'` 的 job 自动跑完整多角色 PEV:测试→开发→评审,阶段间确定性 gate,must-fix 热上下文 `--resume` 回修闭环 + 止损 + 域归属;全程 stream-json trace 可观测。验证来源:fincards `relativeTime` 端到端 243s/done,变异门 93.31%)**。
+**仍待完善**：① 回修闭环目前仅单测覆盖,端到端 fixRounds=0(happy path),真实 must-fix 回修实证待一个会产生 must-fix 的 US;② per-job state/usage 接入 metrics 看板;③ M5-B(worktree 隔离 + 集成分支 + squash)待做。
 
 ## 结构（对应 V4 三层模型）
 
@@ -28,8 +28,11 @@ pipeline/
 │   └── src/
 │       ├── {types,state,run-once,invoke,store,loop,bin-enqueue}.ts  # M3/E3 单消费者(文件队列,回退路径)
 │       ├── queue-sqlite.ts     # M5-A/E5 嵌入式 SQLite 队列(node:sqlite,事务原子认领+WAL)
-│       ├── drive-parallel.ts   # M5-A/E5 N 路并行 worker pool(多消费者)
-│       └── mcp-server.ts       # M5-A/E5 stdio MCP 封装(enqueue/claim/ack/fail/status)
+│       ├── drive-parallel.ts   # M5-A/E5 N 路并行 worker pool + dispatch(kind=inner-loop→内循环)
+│       ├── mcp-server.ts       # M5-A/E5 stdio MCP 封装(enqueue/claim/ack/fail/status)
+│       ├── inner-loop.ts       # M5 PEV 状态机(纯逻辑:回修止损+域归属+升级)
+│       ├── {verdict,gates,prompts}.ts  # M5 评审解析 / 确定性 gate / 角色 prompt 合成
+│       └── inner-loop-runner.ts # M5 真实装配(makePhaseInvoke+gates+verdict→runInnerLoop+per-job state/trace)
 └── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
     ├── src/{types,compute,trace,board,collect,bin-report}.ts
     └── data/{traces,defects}.json

@@ -2,9 +2,11 @@
 
 > 验证来源: M2-A(主 session 当 orchestrator,真 spawn 测试/开发/评审子 agent) · 状态: active(手动驱动;自动驱动待 M3/E3)
 
+> 更新(2026-06-18,M5 inner-loop):本剧本已由 **driver 自动驱动**(非人工 spawn)。见下"驱动方式"。
+
 ## 模式（KB: orchestrator-patterns）
 
-orchestrator(主 session) 分解工作 → spawn workers 执行 → Judge 把关。角色靠**上下文隔离**强制边界。
+orchestrator(主 session 或 **driver**) 分解工作 → spawn workers 执行 → Judge 把关。角色靠**上下文隔离**强制边界。
 
 ## 步骤
 
@@ -17,7 +19,9 @@ orchestrator(主 session) 分解工作 → spawn workers 执行 → Judge 把关
 ## 已知限制与演进
 
 - **SendMessage 不可用**:无法续已结束的子 agent 会话 → 当前 must-fix 由 orchestrator 以集成者身份代修(注明域归属)。**M5/D9 第三方消息组件将支持真正路由回角色**(E5 抽取)。
-- **驱动方式**:E3(M3)已落地 `driver/`(事件触发 + `claude -p` 循环驱动,实跑验证:事件→驱动→真实 claude→状态外置→幂等可恢复)。**现状**:driver 执行"按请求 prompt 调一次 claude";**下一步**:把 driver 的单步执行接到本剧本全流程(事件自动拉起 测试→开发→评审 多角色),实现真正的端到端自动编排。届时角色 spawn 由 driver 而非人工发起。
+- **驱动方式**(已落地 M5 inner-loop,验证来源:fincards `relativeTime` 端到端 243s/done):driver 自动驱动本剧本全流程——`kind='inner-loop'` 的 job 由 `inner-loop-runner.ts` 装配:driver 当高层 PEV 状态机,每角色一次 `claude -p`(stream-json 落 trace),阶段间确定性 gate(RED/GREEN+变异门/verdict),must-fix 自动回修(**热上下文 `--resume` 续接原角色** + 止损 maxFixRounds + 域归属路由)。角色 spawn 由 driver 而非人工发起。
+  - **热上下文 resume 已溶解"SendMessage 不可用"**:`claude -p --session-id/--resume` 跨进程保留对话记忆(spike 实证),回修可续接写出代码的那个角色,无需 D9 常活角色+inbox。
+  - **诚实缺口**:回修闭环目前仅单测覆盖,端到端 fixRounds=0(happy path),真实回修实证待一个会产生 must-fix 的 US。
 
 ## 价值证据（M2-A）
 

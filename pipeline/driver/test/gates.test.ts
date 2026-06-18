@@ -52,4 +52,40 @@ describe('makeGates（注入命令执行器，确定性判定）', () => {
     await gates.green();
     expect(run).toHaveBeenCalledWith('npm', expect.arrayContaining(['run', 'lint']), '/proj');
   });
+
+  it('GREEN 依次跑默认三步:npm run lint / npm run typecheck / npm test', async () => {
+    const run = runnerByCmd({});
+    await makeGates(run, { cwd: '/x' }).green();
+    const calls = run.mock.calls.map((c) => [c[0], (c[1] as string[]).join(' ')].join(' '));
+    expect(calls).toEqual(['npm run lint', 'npm run typecheck', 'npm test']);
+  });
+
+  it('GREEN summary 透传失败命令的输出(brief)', async () => {
+    const gates = makeGates(runnerByCmd({ 'npm run typecheck': failRes('tsc 报错 TS1234') }), { cwd: '/x' });
+    expect((await gates.green()).summary).toContain('tsc 报错 TS1234');
+  });
+
+  it('RED 用默认 npm test;如期红时 summary 标注 RED', async () => {
+    const run = runnerByCmd({ 'npm test': failRes('1 failed') });
+    const r = await makeGates(run, { cwd: '/x' }).red();
+    expect(run).toHaveBeenCalledWith('npm', ['test'], '/x');
+    expect(r.summary).toContain('RED');
+  });
+
+  it('RED 没红时 summary 提示测试无效/越界', async () => {
+    const r = await makeGates(runnerByCmd({}), { cwd: '/x' }).red();
+    expect(r.summary).toMatch(/越界|无效|未失败/);
+  });
+
+  it('变异门用默认 npm run mutation;不达标时 summary 透传输出', async () => {
+    const run = runnerByCmd({ 'npm run mutation': failRes('2 survived') });
+    const r = await makeGates(run, { cwd: '/x' }).mutation();
+    expect(run).toHaveBeenCalledWith('npm', ['run', 'mutation'], '/x');
+    expect(r.summary).toContain('2 survived');
+  });
+
+  it('brief 在无输出时回落到 exit 码', async () => {
+    const gates = makeGates(runnerByCmd({ 'npm run lint': { exitCode: 7, stdout: '', stderr: '' } }), { cwd: '/x' });
+    expect((await gates.green()).summary).toContain('exit 7');
+  });
 });
