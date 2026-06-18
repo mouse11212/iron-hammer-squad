@@ -28,5 +28,28 @@ export function renderBoard(s: MetricsSnapshot): string {
     ...s.traces.map((t) => `| ${t.changeId} | ${t.spec} | ${t.tests.join(', ')} | ${t.commit} |`),
     '',
   ];
+
+  if (s.innerLoop) {
+    const il = s.innerLoop;
+    const dist = Object.keys(il.fixRoundsDistribution)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map((k) => `${k}:${il.fixRoundsDistribution[k]}`)
+      .join(', ');
+    const avg = il.avgCostUsd === null ? '—' : `$${il.avgCostUsd.toFixed(4)}`;
+    lines.push(
+      '## inner-loop 自主运行（① Loop）',
+      '',
+      '| 指标 | 值 |',
+      '|---|---|',
+      `| 总运行 | ${il.total} |`,
+      `| 状态 | done ${il.byStatus.done} / failed ${il.byStatus.failed} / blocked-escalated ${il.byStatus.blockedEscalated} |`,
+      `| 升级率 | ${pct(il.escalationRate)} |`,
+      `| 回修轮次分布 | ${dist} |`,
+      `| 成本 | 总 $${il.totalCostUsd.toFixed(4)} / 均 ${avg} |`,
+      '',
+    );
+  }
+
   return lines.join('\n');
 }

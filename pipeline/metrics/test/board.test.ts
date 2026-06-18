@@ -36,6 +36,28 @@ describe('看板渲染(纯函数)', () => {
     expect(md).toMatch(/Verification Tax.*待埋点/s);
     expect(md).not.toContain('Verification Tax | null');
   });
+  it('无 inner-loop 数据时不渲染该区块', () => {
+    expect(renderBoard(snap)).not.toContain('inner-loop');
+  });
+  it('有 inner-loop 数据时渲染 KPI(运行数/状态/升级率/回修分布/成本)', () => {
+    const md = renderBoard({
+      ...snap,
+      innerLoop: {
+        total: 3,
+        byStatus: { done: 2, failed: 0, blockedEscalated: 1 },
+        escalationRate: 1 / 3,
+        fixRoundsDistribution: { 0: 1, 1: 2 },
+        totalCostUsd: 1.23,
+        avgCostUsd: 0.41,
+      },
+    });
+    expect(md).toContain('inner-loop');
+    expect(md).toContain('done 2');
+    expect(md).toMatch(/升级率.*33\.3%/);
+    expect(md).toContain('1.23'); // 总成本
+    expect(md).toContain('0:1'); // 回修轮次分布
+    expect(md).toContain('1:2');
+  });
 });
 
 describe('追溯链 正/反查(纯函数)', () => {

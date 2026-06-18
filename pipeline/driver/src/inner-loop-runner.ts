@@ -44,7 +44,7 @@ export function makeRunPhase(deps: RunPhaseDeps): (input: PhaseInput) => Promise
       res = await deps.phaseInvoke({ prompt, sessionId: deps.genId(), resume: false, onTraceLine });
       resumed = false;
     }
-    return { exitCode: res.exitCode, sessionId: res.sessionId ?? sessionId, resumed };
+    return { exitCode: res.exitCode, sessionId: res.sessionId ?? sessionId, resumed, costUsd: res.costUsd };
   };
 }
 
@@ -112,19 +112,24 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
   const cmd = makeCmdRunner();
   const gates = makeGates(cmd, { cwd: spec.projectDir });
 
+  let costUsd = 0; // 跨所有 phase(含回修)累加的 claude 调用成本(可度量,供 metrics 聚合)
   const result = await runInnerLoop(
     { id: jobId, maxFixRounds: spec.maxFixRounds },
     {
       runPhase: async (input) => {
         // 每次进入某 role 递增 trace attempt(回修轮分文件)
         traceCounters.set(input.role, (traceCounters.get(input.role) ?? -1) + 1);
-        return runPhase(input);
+        const out = await runPhase(input);
+        costUsd += out.costUsd ?? 0;
+        return out;
       },
       gates,
       readVerdict: async () => parseVerdict(readFileSync(verdictPath, 'utf8')),
     },
   );
 
-  writeFileSync(join(runsDir, 'state.json'), JSON.stringify(result, null, 2), 'utf8');
+  // per-job state.json:状态机结果 + 可度量字段(jobId/costUsd),供 metrics 聚合
+  const record = { jobId, ...result, costUsd };
+  writeFileSync(join(runsDir, 'state.json'), JSON.stringify(record, null, 2), 'utf8');
   return result;
 }

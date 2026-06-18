@@ -25,6 +25,8 @@ export interface PhaseOutput {
   sessionId: string;
   /** 是否成功 resume;false=目标 session 不可 resume 已回退 fresh spawn。 */
   resumed?: boolean;
+  /** 本 phase 的 claude 调用成本(USD);用于可度量聚合,编排逻辑不消费。 */
+  costUsd?: number;
 }
 
 /** 确定性 gate 结果。 */

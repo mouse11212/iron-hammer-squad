@@ -26,6 +26,27 @@ export interface TraceLink {
   commit: string;
 }
 
+/** 一次 inner-loop 运行记录(从 .runtime/runs/<jobId>/state.json 读)。 */
+export interface InnerLoopRunRecord {
+  jobId: string;
+  status: 'done' | 'failed' | 'blocked-escalated';
+  fixRounds: number;
+  costUsd?: number;
+}
+
+/** inner-loop 运行聚合 KPI(自主 run 的可度量画像)。 */
+export interface InnerLoopStats {
+  total: number;
+  byStatus: { done: number; failed: number; blockedEscalated: number };
+  /** blocked-escalated / 总(升级人类比例)。 */
+  escalationRate: number;
+  /** 回修轮次 → run 数。 */
+  fixRoundsDistribution: Record<number, number>;
+  totalCostUsd: number;
+  /** 均成本;无 run 时 null(不臆造)。 */
+  avgCostUsd: number | null;
+}
+
 /** harness 四指标快照(V4 §7)。null = 待埋点/待标定，不臆造。 */
 export interface MetricsSnapshot {
   generatedAt: string;
@@ -38,4 +59,6 @@ export interface MetricsSnapshot {
   defectEscapeRate: number; // 逃逸/总
   defects: { total: number; escaped: number };
   traces: TraceLink[];
+  /** inner-loop 自主运行聚合(无 run 时 undefined,看板省略该区)。 */
+  innerLoop?: InnerLoopStats;
 }

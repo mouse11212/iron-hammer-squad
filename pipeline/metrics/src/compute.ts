@@ -1,4 +1,4 @@
-import type { Numstat, ChurnResult } from './types.js';
+import type { Numstat, ChurnResult, InnerLoopRunRecord, InnerLoopStats } from './types.js';
 
 /** 已解决 / 尝试；attempted=0 返回 0(不除零)。 */
 export function taskResolutionRate(resolved: number, attempted: number): number {
@@ -22,4 +22,29 @@ export function verificationTax(verificationMs: number, implementationMs: number
 /** 逃逸 / 总；总为 0 返回 0(不除零)。 */
 export function defectEscapeRate(escaped: number, total: number): number {
   return total === 0 ? 0 : escaped / total;
+}
+
+/** 聚合 inner-loop 运行 KPI(纯)：状态分布 / 升级率 / 回修轮次分布 / 成本。 */
+export function innerLoopStats(records: InnerLoopRunRecord[]): InnerLoopStats {
+  const byStatus = { done: 0, failed: 0, blockedEscalated: 0 };
+  const fixRoundsDistribution: Record<number, number> = {};
+  let totalCostUsd = 0;
+
+  for (const r of records) {
+    if (r.status === 'done') byStatus.done++;
+    else if (r.status === 'failed') byStatus.failed++;
+    else byStatus.blockedEscalated++;
+    fixRoundsDistribution[r.fixRounds] = (fixRoundsDistribution[r.fixRounds] ?? 0) + 1;
+    totalCostUsd += r.costUsd ?? 0;
+  }
+
+  const total = records.length;
+  return {
+    total,
+    byStatus,
+    escalationRate: total === 0 ? 0 : byStatus.blockedEscalated / total,
+    fixRoundsDistribution,
+    totalCostUsd,
+    avgCostUsd: total === 0 ? null : totalCostUsd / total,
+  };
 }
