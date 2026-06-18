@@ -17,7 +17,8 @@ describe('driveParallelOnce(并行 worker pool,注入替身)', () => {
     try {
       const M = 6;
       const q = openQueue(dbPath);
-      for (let i = 0; i < M; i++) q.enqueue({ id: `r${i}`, kind: 'inner-loop', prompt: `p${i}` });
+      // kind=freeform:本用例测并行消费/无重复/maxActive(走 invoke 路径);inner-loop 派发由专门用例覆盖
+      for (let i = 0; i < M; i++) q.enqueue({ id: `r${i}`, kind: 'freeform', prompt: `p${i}` });
       q.close();
 
       const calls: string[] = [];
@@ -66,6 +67,55 @@ describe('driveParallelOnce(并行 worker pool,注入替身)', () => {
       expect(check.status('ok')).toBe('done');
       expect(check.status('bad')).toBe('failed');
       expect(check.status('boom')).toBe('failed');
+      check.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('dispatch:kind=inner-loop 走 runInner,其它 kind 走 invoke', async () => {
+    const { dir, dbPath } = tmpDb();
+    try {
+      const q = openQueue(dbPath);
+      q.enqueue({ id: 'r-inner', kind: 'inner-loop', prompt: '{"specSlice":"x","projectDir":"/p"}' });
+      q.enqueue({ id: 'r-free', kind: 'freeform', prompt: 'hello' });
+      q.close();
+
+      const innerCalls: Array<{ id: string; prompt: string }> = [];
+      const invokeCalls: string[] = [];
+      const runInner = async (id: string, prompt: string) => {
+        innerCalls.push({ id, prompt });
+        return { status: 'done' as const, fixRounds: 0, sessions: {} };
+      };
+      const invoke = async (p: string): Promise<InvokeResult> => {
+        invokeCalls.push(p);
+        return { exitCode: 0, stdout: '', stderr: '' };
+      };
+
+      await driveParallelOnce(dbPath, invoke, 1, runInner);
+
+      expect(innerCalls).toEqual([{ id: 'r-inner', prompt: '{"specSlice":"x","projectDir":"/p"}' }]);
+      expect(invokeCalls).toEqual(['hello']);
+      const check = openQueue(dbPath);
+      expect(check.status('r-inner')).toBe('done');
+      expect(check.status('r-free')).toBe('done');
+      check.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('inner-loop 结果 blocked-escalated/failed → 队列标 failed(升级人类)', async () => {
+    const { dir, dbPath } = tmpDb();
+    try {
+      const q = openQueue(dbPath);
+      q.enqueue({ id: 'r-block', kind: 'inner-loop', prompt: '{}' });
+      q.close();
+      const runInner = async () => ({ status: 'blocked-escalated' as const, fixRounds: 2, sessions: {}, reason: '回修超限' });
+      const invoke = async (): Promise<InvokeResult> => ({ exitCode: 0, stdout: '', stderr: '' });
+      await driveParallelOnce(dbPath, invoke, 1, runInner);
+      const check = openQueue(dbPath);
+      expect(check.status('r-block')).toBe('failed');
       check.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });

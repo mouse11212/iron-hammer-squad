@@ -1,23 +1,38 @@
 import type { InvokeFn } from './types.js';
 import { openQueue, type Queue } from './queue-sqlite.js';
 import { makeClaudeInvoke } from './invoke.js';
+import { runInnerLoopJob, type InnerLoopJobSpec } from './inner-loop-runner.js';
+import type { InnerLoopResult } from './inner-loop.js';
 
 // 并行多消费者驱动(M5-A/D9):取代 M3 单消费者文件队列 drain。
 // 状态机由 SQLite 队列承担——幂等=claim 只认领 queued;running=claim 设置;
-// done/failed=ack/fail。worker 仅复用 invoke 薄边界跑 claude -p。
+// done/failed=ack/fail。worker 按 kind 路由:'inner-loop'→ 多角色 PEV 内循环;其它→ 单次 invoke。
 // 单进程内 N 个 worker 协程共享一个连接:claim 同步原子串行,不会自双领;
 // 跨进程并发安全由 queue-sqlite 的事务认领保证(见 queue-concurrency 压测)。
 
-/** 单个 worker:循环认领→跑 invoke→ack/fail,队列抽干即退出,返回处理数。 */
-async function worker(name: string, q: Queue, invoke: InvokeFn): Promise<number> {
+/** inner-loop 派发器:据 job 跑多角色内循环,返回终态(测试可注入替身)。 */
+export type InnerRunner = (jobId: string, prompt: string) => Promise<InnerLoopResult>;
+
+/** 默认派发器:job.prompt 是 InnerLoopJobSpec 的 JSON。 */
+const defaultRunInner: InnerRunner = (jobId, prompt) =>
+  runInnerLoopJob(jobId, JSON.parse(prompt) as InnerLoopJobSpec);
+
+/** 单个 worker:循环认领→按 kind 派发→ack/fail,队列抽干即退出,返回处理数。 */
+async function worker(name: string, q: Queue, invoke: InvokeFn, runInner?: InnerRunner): Promise<number> {
   let handled = 0;
   for (;;) {
     const job = q.claim(name);
     if (job === null) break; // drain 模式:队列空即退
     try {
-      const res = await invoke(job.prompt);
-      if (res.exitCode === 0) q.ack(job.id, name, 0);
-      else q.fail(job.id, name, res.stderr, res.exitCode);
+      if (job.kind === 'inner-loop' && runInner) {
+        const r = await runInner(job.id, job.prompt);
+        if (r.status === 'done') q.ack(job.id, name, 0);
+        else q.fail(job.id, name, `${r.status}: ${r.reason ?? ''}`.trim(), 1); // failed/blocked-escalated → 升级人类
+      } else {
+        const res = await invoke(job.prompt);
+        if (res.exitCode === 0) q.ack(job.id, name, 0);
+        else q.fail(job.id, name, res.stderr, res.exitCode);
+      }
     } catch (err) {
       q.fail(job.id, name, err instanceof Error ? err.message : String(err), 1);
     }
@@ -37,12 +52,13 @@ export async function driveParallelOnce(
   dbPath: string,
   invoke: InvokeFn = makeClaudeInvoke(),
   concurrency = 2,
+  runInner: InnerRunner = defaultRunInner,
 ): Promise<number> {
   const q = openQueue(dbPath);
   q.recover();
   try {
     const counts = await Promise.all(
-      Array.from({ length: concurrency }, (_, k) => worker(`w${k}`, q, invoke)),
+      Array.from({ length: concurrency }, (_, k) => worker(`w${k}`, q, invoke, runInner)),
     );
     return counts.reduce((a, b) => a + b, 0);
   } finally {

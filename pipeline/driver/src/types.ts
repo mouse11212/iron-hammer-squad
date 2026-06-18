@@ -29,3 +29,26 @@ export interface InvokeResult {
 
 /** claude -p 薄边界类型：可注入替身以便确定性测试。 */
 export type InvokeFn = (prompt: string) => Promise<InvokeResult>;
+
+// ───────── inner-loop 编排(M5/PEV)类型 ─────────
+
+/** must-fix 归属域：实现 bug → 开发角色；测试缺口 → 测试角色。 */
+export type FixDomain = 'impl' | 'test';
+
+/** 评审产出的单条 must-fix(结构化，driver 据此确定性路由)。 */
+export interface MustFix {
+  domain: FixDomain;
+  desc: string;
+  /** 可选定位文件。 */
+  file?: string;
+}
+
+/** 评审裁决类型。 */
+export type VerdictDecision = 'pass' | 'conditional' | 'block';
+
+/** 评审 phase 产出的结构化 verdict(固定 schema，driver 不解析自由文本)。 */
+export interface Verdict {
+  decision: VerdictDecision;
+  mustFix: MustFix[];
+  niceToHave?: string[];
+}

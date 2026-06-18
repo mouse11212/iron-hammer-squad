@@ -10,10 +10,16 @@ const workerScript = fileURLToPath(new URL('./fixtures/claim-worker.ts', import.
 const driverRoot = fileURLToPath(new URL('..', import.meta.url));
 
 /** 起一个真实子进程消费者,返回它认领到的 id 列表。 */
-function runConsumer(dbPath: string, name: string): Promise<{ ids: string[]; code: number; err: string }> {
+function runConsumer(
+  dbPath: string,
+  name: string,
+  barrierDir: string,
+  n: number,
+): Promise<{ ids: string[]; code: number; err: string }> {
   return new Promise((resolve, reject) => {
     // 用 node --import tsx 跑 .ts worker(免 npx 解析开销);cwd=driver 以 resolve tsx。
-    const p = spawn(process.execPath, ['--import', 'tsx', workerScript, dbPath, name], {
+    // 传 barrierDir + N:全部进程开库就位后再放行,使"确有并发"确定性(消除 tsx 冷启动序列化 flaky)。
+    const p = spawn(process.execPath, ['--import', 'tsx', workerScript, dbPath, name, barrierDir, String(n)], {
       cwd: driverRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -47,9 +53,10 @@ describe('并发认领零双领(多进程真实竞争)', () => {
         for (let i = 0; i < M; i++) q.enqueue({ id: `r${i}`, kind: 'inner-loop', prompt: 'x' });
         q.close();
 
-        // 几乎同时启动 N 个消费者进程,制造真实写锁竞争
+        // 几乎同时启动 N 个消费者进程,经启动屏障对齐后再抢,制造真实写锁竞争
+        const barrierDir = join(dir, 'barrier');
         const results = await Promise.all(
-          Array.from({ length: N }, (_, k) => runConsumer(dbPath, `w${k}`)),
+          Array.from({ length: N }, (_, k) => runConsumer(dbPath, `w${k}`, barrierDir, N)),
         );
 
         // 所有子进程正常退出(无 database is locked 崩溃)
