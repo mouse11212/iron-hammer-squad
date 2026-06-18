@@ -31,9 +31,9 @@
 
 ## 3. 下一步（立即可做）
 
-回修闭环已真实实证(canonicalizeUrl,见 §2)。✅ inner-loop 已接入 M4 看板(总运行/状态/升级率/回修轮次分布/成本,cost 从此次起埋点);✅ `canonicalizeUrl` 已接线进 `aggregate.ts`(按规范化 URL 去重,真实消除跨源重复;fincards 变异门 96.75%)。下一步:
-① **M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 另一半);
-② 把并行 driver 接到事件自动拉起 inner-loop(当前 e2e 由脚本手动 runInnerLoopJob,可经队列+dispatch 自动触发)。
+回修闭环已真实实证。✅ inner-loop 接入 M4 看板(成本埋点已产真实值);✅ `canonicalizeUrl` 接线 `aggregate`(规范化去重);✅ **事件驱动全链打通**——SQLite 入队→认领→dispatch→inner-loop→ack done(穿真实队列,`bin-enqueue-sqlite.ts`;看板总运行 3/成本均 $0.56)。下一步:
+① **修 harness 缺口**:inner-loop 变异门用静态 stryker.conf,**新建文件逃出变异门**(见 M5 retro)→ 让变异范围按 git diff 动态确定;
+② **M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 另一半)。
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 
