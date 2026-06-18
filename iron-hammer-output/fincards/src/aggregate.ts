@@ -1,8 +1,10 @@
 import type { NewsItem } from './types.js';
+import { canonicalizeUrl } from './canonicalizeUrl.js';
 
 /**
  * 纯函数：合并多源新闻并规整。
- * - 合并所有源后按 `link` 去重，同一 link 保留首次出现的条目。
+ * - 合并所有源后按 **规范化 URL**(canonicalizeUrl) 去重：同一文章因跟踪参数/大小写/
+ *   尾斜杠/fragment 等差异在不同源出现时,判为同一条,保留首次出现的条目(原始 link 不改写)。
  * - 按 `pubDate` 倒序（新 → 旧）排序；Invalid Date 一律垫底，排序过程不抛错。
  * - 无副作用、不读时钟、不发起网络请求。
  */
@@ -12,8 +14,9 @@ export function aggregate(sources: NewsItem[][]): NewsItem[] {
 
   for (const source of sources) {
     for (const item of source) {
-      if (seen.has(item.link)) continue;
-      seen.add(item.link);
+      const key = canonicalizeUrl(item.link);
+      if (seen.has(key)) continue;
+      seen.add(key);
       deduped.push(item);
     }
   }

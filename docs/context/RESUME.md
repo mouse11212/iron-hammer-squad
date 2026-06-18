@@ -31,10 +31,9 @@
 
 ## 3. 下一步（立即可做）
 
-回修闭环已真实实证(canonicalizeUrl,见 §2)。下一步:
-① per-job state/usage 接入 M4 metrics 看板(state.json+trace 已落盘,喂看板待做,task 5.3);
-② 把 `canonicalizeUrl` 接线进 `aggregate.ts`(当前仍按原始 link 去重,canonical 去重待接;属后续切片,评审已注明边界);
-③ **M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 另一半)。
+回修闭环已真实实证(canonicalizeUrl,见 §2)。✅ inner-loop 已接入 M4 看板(总运行/状态/升级率/回修轮次分布/成本,cost 从此次起埋点);✅ `canonicalizeUrl` 已接线进 `aggregate.ts`(按规范化 URL 去重,真实消除跨源重复;fincards 变异门 96.75%)。下一步:
+① **M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 另一半);
+② 把并行 driver 接到事件自动拉起 inner-loop(当前 e2e 由脚本手动 runInnerLoopJob,可经队列+dispatch 自动触发)。
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 

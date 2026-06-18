@@ -170,6 +170,25 @@ describe('aggregate (news-aggregate)', () => {
     ]);
   });
 
+  // 规约(接线 canonicalizeUrl)：按规范化 URL 去重——同一文章因跟踪参数/大小写/尾斜杠差异跨源仍判同一条
+  it('规范化去重：跟踪参数差异视为同一条', () => {
+    const a = [item('https://x.com/a?utm_source=news&id=1', '2026-06-17T05:00:00Z')];
+    const b = [item('https://x.com/a?id=1', '2026-06-17T06:00:00Z')];
+    expect(aggregate([a, b])).toHaveLength(1);
+  });
+
+  it('规范化去重：host 大小写与尾斜杠差异视为同一条', () => {
+    const a = [item('https://X.com/a/', '2026-06-17T05:00:00Z')];
+    const b = [item('https://x.com/a', '2026-06-17T06:00:00Z')];
+    expect(aggregate([a, b])).toHaveLength(1);
+  });
+
+  it('规范化去重保留首条原始 link（不改写展示链接）', () => {
+    const a = [item('https://x.com/a?utm_source=news', '2026-06-17T05:00:00Z')];
+    const b = [item('https://x.com/a', '2026-06-17T06:00:00Z')];
+    expect(aggregate([a, b])[0]!.link).toBe('https://x.com/a?utm_source=news');
+  });
+
   // 规约 5：边界 —— 空输入返回 []
   it('空输入 aggregate([]) 返回 []', () => {
     expect(aggregate([])).toEqual([]);
