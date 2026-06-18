@@ -22,7 +22,7 @@
 | M3 事件驱动 | ✅ 归档 | `pipeline/driver/`:文件队列(事件)→claude -p→外置状态→幂等/恢复 |
 | M4 可观测 | ✅ 归档 | `pipeline/metrics/`:四指标+追溯链+看板;真实 dashboard |
 | M5-A 并行队列 | ✅ 归档 | `pipeline/driver/`:node:sqlite 事务原子认领队列 + N 路并行 worker + stdio MCP;4 进程抢 500 条零双领压测 |
-| M5 inner-loop 自动编排 | ✅ 归档 | `pipeline/driver/`:driver 自动驱动多角色 PEV(测试→开发→评审),阶段间确定性 gate,must-fix **热上下文 `--resume` 回修闭环**+止损+域归属,全程 trace。fincards `relativeTime` 端到端 243s/done;变异门 93.31%。⚠️**回修闭环仅单测,真实 must-fix 实证待补** |
+| M5 inner-loop 自动编排 | ✅ 归档 | `pipeline/driver/`:driver 自动驱动多角色 PEV(测试→开发→评审),阶段间确定性 gate,must-fix **热上下文 `--resume` 回修闭环**+止损+域归属,全程 trace。变异门 93.31%。**两个端到端实证**:① `relativeTime` 243s/done/fixRounds=0;② `canonicalizeUrl` 856s/done/**fixRounds=1**——真实 must-fix(评审抓 valueless 参数缺口+豁免等价变异)→ **resume 同一 session 回修**(session_id 一致)→ 收敛;fincards gate 100 绿。**回修闭环已真实坐实** |
 
 - **抽取线 E0–E5(部分) 已完成**(方案 A 边验证边抽取,产物可持续修正):`pipeline/` 现有 roles/gates/guides/workflows + driver(①,含 M5-A 并发队列/并行驱动/MCP)+ metrics(②)。
 - **产品 fincards** 在 `iron-hammer-output/fincards/`:真四源聚合,TDD + 变异门 100%。
@@ -31,8 +31,10 @@
 
 ## 3. 下一步（立即可做）
 
-**优先:跑一个会产生 must-fix 的 US,拿回修闭环真实基线**(填上 inner-loop 的诚实缺口:端到端 fixRounds=0,resume 回修仅单测覆盖)。
-其后:① per-job state/usage 接入 M4 metrics 看板(state.json+trace 已落盘,喂看板待做,task 5.3);② **M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 另一半)。
+回修闭环已真实实证(canonicalizeUrl,见 §2)。下一步:
+① per-job state/usage 接入 M4 metrics 看板(state.json+trace 已落盘,喂看板待做,task 5.3);
+② 把 `canonicalizeUrl` 接线进 `aggregate.ts`(当前仍按原始 link 去重,canonical 去重待接;属后续切片,评审已注明边界);
+③ **M5-B:Git worktree 隔离 + 集成分支兜底 + squash 合并**(M5 DoD 另一半)。
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 
