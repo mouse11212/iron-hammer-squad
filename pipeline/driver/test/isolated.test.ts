@@ -25,49 +25,39 @@ function deps(over: Partial<IsolatedDeps> = {}): IsolatedDeps {
   return {
     wt: stubWt(),
     runJob: vi.fn(async (): Promise<InnerLoopResult> => ({ status: 'done', fixRounds: 0, sessions: {} })),
-    integrationGate: async () => ({ ok: true }),
     repoRoot: '/repo',
-    runtimeDir: '/repo/pipeline/.runtime/worktrees',
     ...over,
   };
 }
 
-describe('runIsolated（worktree 隔离编排）', () => {
-  it('done:create→linkDeps→在 worktree 内跑→squash→integrate→remove,ready 反映集成', async () => {
+describe('runIsolated（隔离只产 feature 分支,不集成）', () => {
+  it('done:create→linkDeps→worktree 内跑→squash 产分支;不 integrate,回收', async () => {
     const d = deps();
     const r = await runIsolated('j1', spec, d);
     expect(d.wt.create).toHaveBeenCalledWith('j1', expect.any(String));
     expect(d.wt.linkDeps).toHaveBeenCalledWith('/wt/j1', 'iron-hammer-output/fincards');
-    // inner-loop 的 projectDir 指向 worktree 内子路径
     expect(d.runJob).toHaveBeenCalledWith('j1', expect.objectContaining({ projectDir: '/wt/j1/iron-hammer-output/fincards' }));
     expect(d.wt.squashCommit).toHaveBeenCalledWith('/wt/j1/iron-hammer-output/fincards', spec.targetPaths, expect.any(String));
-    expect(d.wt.integrate).toHaveBeenCalled();
+    expect(r.committed).toBe(true);
+    expect(r.branch).toBe('agent/j1');
+    expect(d.wt.integrate).not.toHaveBeenCalled(); // 集成移到批后
     expect(d.wt.remove).toHaveBeenCalledWith('/wt/j1');
-    expect(r.ready).toBe(true);
-    expect(r.result.status).toBe('done');
   });
 
-  it('非 done(failed):不 squash 不 integrate,但仍回收 worktree', async () => {
+  it('非 done:不 squash,committed=false,无 branch,仍回收', async () => {
     const d = deps({ runJob: vi.fn(async () => ({ status: 'failed' as const, fixRounds: 0, sessions: {} })) });
     const r = await runIsolated('j1', spec, d);
     expect(d.wt.squashCommit).not.toHaveBeenCalled();
-    expect(d.wt.integrate).not.toHaveBeenCalled();
+    expect(r.committed).toBe(false);
+    expect(r.branch).toBeUndefined();
     expect(d.wt.remove).toHaveBeenCalledWith('/wt/j1');
-    expect(r.ready).toBe(false);
   });
 
-  it('squash 无改动(false):不 integrate,ready=false', async () => {
+  it('squash 无改动(false):committed=false,无 branch', async () => {
     const d = deps({ wt: stubWt({ squashCommit: vi.fn(async () => false) }) });
     const r = await runIsolated('j1', spec, d);
-    expect(d.wt.integrate).not.toHaveBeenCalled();
-    expect(r.ready).toBe(false);
-  });
-
-  it('集成不全绿:ready=false,worktree 仍回收', async () => {
-    const d = deps({ wt: stubWt({ integrate: vi.fn(async () => ({ ok: false, ready: false })) }) });
-    const r = await runIsolated('j1', spec, d);
-    expect(r.ready).toBe(false);
-    expect(d.wt.remove).toHaveBeenCalled();
+    expect(r.committed).toBe(false);
+    expect(r.branch).toBeUndefined();
   });
 
   it('runJob 抛错也回收 worktree(finally)', async () => {

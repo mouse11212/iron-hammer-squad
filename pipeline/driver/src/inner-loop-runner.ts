@@ -7,7 +7,8 @@ import { buildPhasePrompt, type PromptContext } from './prompts.js';
 import { makePhaseInvoke, type PhaseInvokeInput, type PhaseInvokeResult } from './invoke.js';
 import { makeGates, type CmdResult } from './gates.js';
 import { parseVerdict } from './verdict.js';
-import { makeWorktreeManager, type WorktreeManager } from './worktree.js';
+import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } from './worktree.js';
+import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
   type PhaseInput,
@@ -152,23 +153,21 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
 export interface IsolatedDeps {
   wt: WorktreeManager;
   runJob: (jobId: string, spec: InnerLoopJobSpec) => Promise<InnerLoopResult>;
-  /** 在给定 projectDir 跑集成 gate(green)。 */
-  integrationGate: (projectDir: string) => Promise<GateResult>;
   repoRoot: string;
-  runtimeDir: string;
   baseRef?: string;
 }
 
 export interface IsolatedResult {
   result: InnerLoopResult;
-  /** 集成分支全绿、可供人类合 main 的就绪态。 */
-  ready: boolean;
+  /** done 且 squash 成功时的 feature 分支(供批后集成);否则 undefined。 */
+  branch?: string;
+  committed: boolean;
 }
 
 /**
  * worktree 隔离编排:建 worktree → 软链依赖 → inner-loop 在 worktree 内跑 →
- * done 则 squash 提交 + 集成分支兜底(全绿才 ready)→ finally 回收 worktree。
- * 绝不写 main(军规 1/2:main 合并是 HITL)。纯编排,deps 全注入。
+ * done 则 squash 出 feature 分支(**不在此集成**,集成统一交批后 batchIntegrate)→ finally 回收。
+ * 绝不写 main(军规 1/2)。纯编排,deps 全注入。
  */
 export async function runIsolated(
   jobId: string,
@@ -181,47 +180,83 @@ export async function runIsolated(
   try {
     await deps.wt.linkDeps(wtInfo.path, relProjectDir);
     const result = await deps.runJob(jobId, { ...spec, projectDir: join(wtInfo.path, relProjectDir) });
-
-    let ready = false;
+    let committed = false;
     if (result.status === 'done') {
-      const committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), spec.targetPaths ?? [], `feat(${jobId}): inner-loop 交付`);
-      if (committed) {
-        const intWorktree = join(deps.runtimeDir, '_integration');
-        const r = await deps.wt.integrate(
-          wtInfo.branch,
-          { integrationBranch: 'integration', baseRef, intWorktree },
-          async () => {
-            await deps.wt.linkDeps(intWorktree, relProjectDir); // 集成 worktree 也需依赖软链
-            return deps.integrationGate(join(intWorktree, relProjectDir));
-          },
-        );
-        ready = r.ready;
-      }
+      committed = await deps.wt.squashCommit(
+        join(wtInfo.path, relProjectDir),
+        spec.targetPaths ?? [],
+        `feat(${jobId}): inner-loop 交付`,
+      );
     }
-    return { result, ready };
+    return { result, branch: committed ? wtInfo.branch : undefined, committed };
   } finally {
     await deps.wt.remove(wtInfo.path); // 军规 3:完成即回收
   }
 }
 
-/** 真实装配:供 driver dispatch 调用(隔离模式)。 */
+// ───────── 批后集成:并行隔离 drain + batchIntegrate(②)─────────
+
+export interface BatchDrainDeps {
+  runOne: (jobId: string, spec: InnerLoopJobSpec) => Promise<IsolatedResult>;
+  batchIntegrate: WorktreeManager['batchIntegrate'];
+  integrationGate: (projectDir: string) => Promise<GateResult>;
+  linkDeps: WorktreeManager['linkDeps'];
+  repoRoot: string;
+  runtimeDir: string;
+  relProjectDir: string;
+  baseRef?: string;
+  concurrency?: number;
+}
+
+export interface BatchDrainResult {
+  handled: number;
+  integration: BatchIntegrateResult | null;
+}
+
+/**
+ * 并行隔离 drain:N 个 worker 认领 inner-loop job → runOne(隔离,产分支)→ ack/fail;
+ * 抽干后把 committed 的 feature 分支统一交 batchIntegrate(无则跳过)。集成停 HITL,不写 main。
+ */
+export async function drainBatchIsolated(q: Queue, deps: BatchDrainDeps): Promise<BatchDrainResult> {
+  const results: IsolatedResult[] = [];
+  const worker = async (name: string): Promise<void> => {
+    for (;;) {
+      const job = q.claim(name);
+      if (job === null) break;
+      try {
+        const res = await deps.runOne(job.id, JSON.parse(job.prompt) as InnerLoopJobSpec);
+        results.push(res);
+        if (res.result.status === 'done') q.ack(job.id, name, 0);
+        else q.fail(job.id, name, res.result.status, 1);
+      } catch (err) {
+        q.fail(job.id, name, err instanceof Error ? err.message : String(err), 1);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: deps.concurrency ?? 2 }, (_, k) => worker(`w${k}`)));
+
+  const branches = results.filter((r) => r.committed && r.branch).map((r) => r.branch!);
+  let integration: BatchIntegrateResult | null = null;
+  if (branches.length > 0) {
+    const intWorktree = join(deps.runtimeDir, '_integration');
+    integration = await deps.batchIntegrate(
+      branches,
+      { integrationBranch: 'integration', baseRef: deps.baseRef ?? 'HEAD', intWorktree },
+      async () => {
+        await deps.linkDeps(intWorktree, deps.relProjectDir);
+        return deps.integrationGate(join(intWorktree, deps.relProjectDir));
+      },
+    );
+  }
+  return { handled: results.length, integration };
+}
+
+/** 真实装配:单个隔离 job(供 driver dispatch)。集成交批后步骤,这里只产分支。 */
 export async function runInnerLoopJobIsolated(jobId: string, spec: InnerLoopJobSpec): Promise<IsolatedResult> {
   const pipeline = pipelineDir();
   const repoRoot = join(pipeline, '..');
   const runtimeDir = join(pipeline, '.runtime', 'worktrees');
   const cmd = makeCmdRunner();
   const wt = makeWorktreeManager(cmd, { repoRoot, runtimeDir });
-  const out = await runIsolated(jobId, spec, {
-    wt,
-    runJob: runInnerLoopJob,
-    integrationGate: (projectDir) => makeGates(cmd, { cwd: projectDir }).green(),
-    repoRoot,
-    runtimeDir,
-  });
-  // 集成就绪信号落盘(可观测;HITL 据此决定是否合 main)
-  appendFileSync(
-    join(pipeline, '.runtime', 'runs', jobId, 'integration.json'),
-    JSON.stringify({ jobId, status: out.result.status, integrationReady: out.ready }),
-  );
-  return out;
+  return runIsolated(jobId, spec, { wt, runJob: runInnerLoopJob, repoRoot });
 }
