@@ -19,6 +19,12 @@
 
 - relProjectDir 在批后集成 gate 里需要(集成 worktree 跑 green);drainBatchIsolated 由 deps 显式传入(operator 配置),未从 job spec 动态推导——多项目混批是后续问题(当前单项目假设)。
 
+## ③ 全链真 e2e 验证(2026-06-22)
+
+入队 inner-loop job → drainBatchIsolated → 隔离 worktree 内**真 claude 跑内循环** → done → squash 产分支 → batchIntegrate → `{ready:true, merged:[agent/e2e-iso-1], held:[]}` → main HEAD 不变 → 隔离(主检出无产物)→ 回收。249s,全链(①隔离+②批后集成+真 claude)端到端打通。
+
+> ⚠️ **harness 硬化发现**:首跑撞**瞬时 API 错误**("socket connection closed unexpectedly")——测试 phase isError → job failed。**反向验证了失败路径正确**(不提交/不集成/回收)。但瞬时 API/网络抖动是**可重试**的基础设施问题,当前当硬失败 → 长跑流水线会被随机打断。**待硬化**:makePhaseInvoke/编排对瞬时 API 错误做有限重试(区分"模型/代码失败"与"基础设施抖动")。记入 RESUME 下一步①。
+
 ## 不在本切片(留后)
 
 - 真实多 job 隔离 → 批后 batchIntegrate 的完整 e2e(各组件已分别真验证:runIsolated 真集成 M5-B、batchIntegrate 真冲突上一切片、drainBatchIsolated 真内存队列单测;全链真 git+真 claude 串视需要)。
