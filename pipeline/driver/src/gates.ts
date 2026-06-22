@@ -48,8 +48,11 @@ const brief = (r: CmdResult): string => (r.stderr || r.stdout || `exit ${r.exitC
  * 纯解析 `git status --porcelain` → 本切片待变异的源文件(src/*.ts,排除测试/非源/已删除)。
  * 修 harness 缺口:inner-loop 变异门据此动态确定 mutate 范围,使 dev 新建文件也被把关,
  * 而非依赖静态 stryker.conf(新文件会逃门)。
+ * @param prefix `git rev-parse --show-prefix`(工程相对仓库根的路径):porcelain 路径是仓库根相对,
+ *   子目录工程需剥掉 prefix 得到工程相对路径(stryker 在工程内跑,--mutate 须工程相对);
+ *   prefix 外的改动(其它工程)被排除。
  */
-export function mutateTargetsFromStatus(porcelain: string): string[] {
+export function mutateTargetsFromStatus(porcelain: string, prefix = ''): string[] {
   const out = new Set<string>();
   for (const raw of porcelain.split('\n')) {
     if (!raw.trim()) continue;
@@ -58,6 +61,10 @@ export function mutateTargetsFromStatus(porcelain: string): string[] {
     const arrow = path.indexOf(' -> ');
     if (arrow !== -1) path = path.slice(arrow + 4).trim(); // 重命名取新路径
     path = path.replace(/^"(.*)"$/, '$1'); // porcelain 对含空格路径加引号
+    if (prefix) {
+      if (!path.startsWith(prefix)) continue; // 工程外改动,忽略
+      path = path.slice(prefix.length); // 仓库根相对 → 工程相对
+    }
     if (path.startsWith('src/') && path.endsWith('.ts') && !path.endsWith('.test.ts')) {
       out.add(path);
     }
@@ -92,8 +99,10 @@ export function makeGates(run: CmdRunner, opts: GateOptions): {
 
     async mutation(): Promise<GateResult> {
       // 动态范围:据 git 改动确定本切片要变异的源文件,用 --mutate 覆盖静态 stryker.conf。
+      // porcelain 路径是仓库根相对;子目录工程用 show-prefix 剥成工程相对(stryker 在工程内跑)。
+      const prefixRes = await run('git', ['rev-parse', '--show-prefix'], opts.cwd);
       const status = await run('git', ['status', '--porcelain'], opts.cwd);
-      const targets = mutateTargetsFromStatus(status.stdout);
+      const targets = mutateTargetsFromStatus(status.stdout, prefixRes.stdout.trim());
       if (targets.length === 0) return { ok: true, summary: '无源文件改动,跳过变异门' };
       const r = await run(mutation.cmd, [...mutation.args, '--', '--mutate', targets.join(',')], opts.cwd);
       if (r.exitCode === 0) return { ok: true, summary: `变异门覆盖 ${targets.length} 个改动源文件` };

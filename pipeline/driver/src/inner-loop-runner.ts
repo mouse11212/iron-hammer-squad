@@ -109,7 +109,12 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
     },
   });
 
-  const cmd = makeCmdRunner();
+  // gate 命令日志(可观测:阶段间确定性 gate 也落 trace,补 phase trace 之外的盲点)
+  const baseCmd = makeCmdRunner();
+  const cmd: typeof baseCmd = (c, a, cwd) => {
+    appendFileSync(join(runsDir, 'gates.jsonl'), JSON.stringify({ cmd: c, args: a }) + '\n');
+    return baseCmd(c, a, cwd);
+  };
   const gates = makeGates(cmd, { cwd: spec.projectDir });
 
   let costUsd = 0; // 跨所有 phase(含回修)累加的 claude 调用成本(可度量,供 metrics 聚合)
