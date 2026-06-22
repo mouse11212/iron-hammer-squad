@@ -102,8 +102,15 @@ export function makeWorktreeManager(
     },
 
     async batchIntegrate(featureBranches, o, gatePerFeature) {
-      // 重置 integration worktree 到 base(自 base 起累积),不切主检出 HEAD。
-      await run('git', ['worktree', 'add', '-f', '-B', o.integrationBranch, o.intWorktree, o.baseRef], repoRoot);
+      // 跨批次累积:integration 不存在则从 base 建,已存在则复用(不重置到 base),在其上累加本批。
+      // 不切主检出 HEAD(军规 2)。
+      const exists = (await run('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${o.integrationBranch}`], repoRoot)).exitCode === 0;
+      await run('git', ['worktree', 'remove', '--force', o.intWorktree], repoRoot); // 移除残留(best-effort,不存在则忽略)
+      if (exists) {
+        await run('git', ['worktree', 'add', '-f', o.intWorktree, o.integrationBranch], repoRoot); // 复用已累积分支
+      } else {
+        await run('git', ['worktree', 'add', '-f', '-b', o.integrationBranch, o.intWorktree, o.baseRef], repoRoot); // 首建自 base
+      }
       const merged: string[] = [];
       const held: BatchHeld[] = [];
       for (const branch of featureBranches) {

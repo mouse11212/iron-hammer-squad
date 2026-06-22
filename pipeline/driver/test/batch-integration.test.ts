@@ -6,10 +6,16 @@ const ok: CmdResult = { exitCode: 0, stdout: '', stderr: '' };
 const repoRoot = '/repo';
 const opts = { integrationBranch: 'integration', baseRef: 'main', intWorktree: '/int' };
 
-/** 注入 runner:rev-parse 返回递增 sha;指定分支的 merge --squash 返回冲突。 */
-function mkRun(conflictBranches: string[] = []) {
+/**
+ * 注入 runner:
+ * - `rev-parse --verify refs/heads/...` → 按 branchExists 决定 exit(分支存在判别)
+ * - `rev-parse HEAD` → 递增 sha
+ * - 指定分支的 merge --squash → 冲突
+ */
+function mkRun(conflictBranches: string[] = [], branchExists = false) {
   let head = 0;
   return vi.fn(async (_cmd: string, args: string[]): Promise<CmdResult> => {
+    if (args.includes('--verify')) return { exitCode: branchExists ? 0 : 1, stdout: '', stderr: '' };
     if (args.includes('rev-parse')) return { exitCode: 0, stdout: `sha-${head++}`, stderr: '' };
     if (args.includes('merge') && args.includes('--squash')) {
       const branch = args[args.length - 1]!;
@@ -63,10 +69,22 @@ describe('batchIntegrate（N 分支集成 + 冲突回滚升级,不动 main）', 
     expect(calls(run).some((c) => /reset --hard/.test(c))).toBe(true);
   });
 
-  it('integration worktree 自 base 重置(不动主检出)', async () => {
-    const run = mkRun();
+  it('首批(integration 不存在)→ 从 base 创建(worktree add -b,不动主检出)', async () => {
+    const run = mkRun([], false); // 分支不存在
     await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['a'], opts, async () => ({ ok: true }));
-    expect(run).toHaveBeenCalledWith('git', ['worktree', 'add', '-f', '-B', 'integration', '/int', 'main'], repoRoot);
+    expect(run).toHaveBeenCalledWith('git', ['worktree', 'add', '-f', '-b', 'integration', '/int', 'main'], repoRoot);
+  });
+
+  it('后批(integration 已存在)→ 复用累积分支,不重置到 base', async () => {
+    const run = mkRun([], true); // 分支已存在
+    await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['c'], opts, async () => ({ ok: true }));
+    // 复用:checkout 已有 integration,无 -b/-B,无 base
+    expect(run).toHaveBeenCalledWith('git', ['worktree', 'add', '-f', '/int', 'integration'], repoRoot);
+    const cs = calls(run);
+    expect(cs.some((c) => /worktree add.*-[bB]/.test(c))).toBe(false); // 不创建/不重置
+    expect(cs.some((c) => /worktree add.*\bmain\b/.test(c))).toBe(false); // 不回 base
+    // 仍合入本批 feature
+    expect(run).toHaveBeenCalledWith('git', ['-C', '/int', 'merge', '--squash', 'c'], repoRoot);
   });
 
   it('绝不对 main 做写操作', async () => {
