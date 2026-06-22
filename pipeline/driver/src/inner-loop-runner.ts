@@ -8,6 +8,7 @@ import { makePhaseInvoke, isTransientApiError, type PhaseInvokeInput, type Phase
 import { makeGates, type CmdResult } from './gates.js';
 import { parseVerdict } from './verdict.js';
 import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } from './worktree.js';
+import { renderHandoffReport } from './handoff.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -238,6 +239,8 @@ export interface BatchDrainDeps {
   runtimeDir: string;
   baseRef?: string;
   concurrency?: number;
+  /** 批后集成完成后的 HITL 交接钩子(产出报告/通知);仅在本批有 job 时触发。 */
+  onHandoff?: (integration: BatchIntegrateResult | null) => void;
 }
 
 export interface BatchDrainResult {
@@ -286,7 +289,23 @@ export async function drainBatchIsolated(q: Queue, deps: BatchDrainDeps): Promis
       },
     );
   }
+  if (results.length > 0) deps.onHandoff?.(integration); // 本批有 job → HITL 交接(含全 held/无产出场景)
   return { handled: results.length, integration };
+}
+
+/** 默认 HITL 交接:渲染报告写 <runtimeRoot>/integration-report.md + 控制台摘要。 */
+export function makeDefaultHandoff(runtimeRoot: string): (integration: BatchIntegrateResult | null) => void {
+  return (integration) => {
+    const report = renderHandoffReport(integration, {
+      integrationBranch: 'integration',
+      generatedAt: new Date().toISOString(),
+    });
+    const out = join(runtimeRoot, 'integration-report.md');
+    writeFileSync(out, report, 'utf8');
+    const merged = integration?.merged.length ?? 0;
+    const held = integration?.held.length ?? 0;
+    console.log(`[handoff] 集成交接 → ${out}(已集成 ${merged} / 挂起 ${held})${held ? ' ⚠️需人处理' : ''}`);
+  };
 }
 
 /** 真实装配:单个隔离 job(供 driver dispatch)。集成交批后步骤,这里只产分支。 */

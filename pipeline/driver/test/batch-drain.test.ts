@@ -23,6 +23,7 @@ function deps(over: Partial<BatchDrainDeps> = {}): BatchDrainDeps {
     repoRoot: '/repo',
     runtimeDir: '/rt',
     concurrency: 1,
+    onHandoff: vi.fn(),
     ...over,
   };
 }
@@ -59,6 +60,24 @@ describe('drainBatchIsolated（并行隔离 drain + 批后集成）', () => {
     const q = openQueue(':memory:');
     const r = await drainBatchIsolated(q, deps());
     expect(r.handled).toBe(0);
+    q.close();
+  });
+
+  it('批后触发 onHandoff,收到本批集成结果(HITL 交接)', async () => {
+    const q = openQueue(':memory:');
+    for (const id of ['j1', 'j3']) q.enqueue({ id, kind: 'inner-loop', prompt: spec() });
+    const onHandoff = vi.fn();
+    await drainBatchIsolated(q, deps({ onHandoff }));
+    expect(onHandoff).toHaveBeenCalledTimes(1);
+    expect(onHandoff.mock.calls[0]![0]).toMatchObject({ merged: ['agent/j1', 'agent/j3'] });
+    q.close();
+  });
+
+  it('空队列(无 job)不触发 onHandoff', async () => {
+    const q = openQueue(':memory:');
+    const onHandoff = vi.fn();
+    await drainBatchIsolated(q, deps({ onHandoff }));
+    expect(onHandoff).not.toHaveBeenCalled();
     q.close();
   });
 
