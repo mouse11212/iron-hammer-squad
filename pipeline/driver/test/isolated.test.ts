@@ -16,6 +16,7 @@ function stubWt(over: Partial<IsolatedDeps['wt']> = {}): IsolatedDeps['wt'] {
     squashCommit: vi.fn(async () => true),
     remove: vi.fn(async () => {}),
     integrate: vi.fn(async () => ({ ok: true, ready: true })),
+    batchIntegrate: vi.fn(async () => ({ ready: false, merged: [], held: [] })),
     ...over,
   };
 }

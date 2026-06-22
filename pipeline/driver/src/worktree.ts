@@ -29,6 +29,18 @@ export interface IntegrateResult {
   summary?: string;
 }
 
+export interface BatchHeld {
+  branch: string;
+  reason: 'conflict' | 'gate';
+}
+
+export interface BatchIntegrateResult {
+  /** held 空且 merged 非空 → 可供人类合 main。 */
+  ready: boolean;
+  merged: string[];
+  held: BatchHeld[];
+}
+
 export interface WorktreeManager {
   /** 从 baseRef 建独立 worktree + feature 分支(agent/<jobId>)。 */
   create(jobId: string, baseRef: string): Promise<WorktreeInfo>;
@@ -40,6 +52,12 @@ export interface WorktreeManager {
   remove(worktreePath: string): Promise<void>;
   /** 集成分支兜底:feature squash-merge 进 integration(独立 worktree,不动 main)→ 跑集成 gate。 */
   integrate(featureBranch: string, opts: IntegrateOpts, gate: () => Promise<GateResult>): Promise<IntegrateResult>;
+  /** 批量集成 N 个 feature(军规 8):clean+green 合入,冲突/gate 红回滚并 held 升级;不动 main、不自动解冲突(军规 1)。 */
+  batchIntegrate(
+    featureBranches: string[],
+    opts: IntegrateOpts,
+    gatePerFeature: () => Promise<GateResult>,
+  ): Promise<BatchIntegrateResult>;
 }
 
 export function makeWorktreeManager(
@@ -81,6 +99,33 @@ export function makeWorktreeManager(
       await run('git', ['-C', o.intWorktree, 'commit', '-m', `integrate ${featureBranch}`], repoRoot);
       const g = await gate();
       return { ok: g.ok, ready: g.ok, summary: g.summary };
+    },
+
+    async batchIntegrate(featureBranches, o, gatePerFeature) {
+      // 重置 integration worktree 到 base(自 base 起累积),不切主检出 HEAD。
+      await run('git', ['worktree', 'add', '-f', '-B', o.integrationBranch, o.intWorktree, o.baseRef], repoRoot);
+      const merged: string[] = [];
+      const held: BatchHeld[] = [];
+      for (const branch of featureBranches) {
+        const cur = (await run('git', ['-C', o.intWorktree, 'rev-parse', 'HEAD'], repoRoot)).stdout.trim();
+        const m = await run('git', ['-C', o.intWorktree, 'merge', '--squash', branch], repoRoot);
+        if (m.exitCode !== 0) {
+          // 冲突:回滚 + 清残留,不自动解决(军规 1),不阻塞其它
+          await run('git', ['-C', o.intWorktree, 'reset', '--hard', cur], repoRoot);
+          await run('git', ['-C', o.intWorktree, 'clean', '-fd'], repoRoot);
+          held.push({ branch, reason: 'conflict' });
+          continue;
+        }
+        await run('git', ['-C', o.intWorktree, 'commit', '-m', `integrate ${branch}`], repoRoot);
+        const g = await gatePerFeature();
+        if (!g.ok) {
+          await run('git', ['-C', o.intWorktree, 'reset', '--hard', cur], repoRoot);
+          held.push({ branch, reason: 'gate' });
+          continue;
+        }
+        merged.push(branch);
+      }
+      return { ready: held.length === 0 && merged.length > 0, merged, held };
     },
   };
 }
