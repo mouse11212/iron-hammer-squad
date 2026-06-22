@@ -40,6 +40,16 @@ describe('batchIntegrate（N 分支集成 + 冲突回滚升级,不动 main）', 
     expect(run).toHaveBeenCalledWith('git', ['-C', '/int', 'commit', '-m', 'integrate a'], repoRoot);
   });
 
+  it('gatePerFeature 收到对应 feature 分支(供按项目路由)', async () => {
+    const run = mkRun();
+    const seen: string[] = [];
+    await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['a', 'b'], opts, async (branch) => {
+      seen.push(branch);
+      return { ok: true };
+    });
+    expect(seen).toEqual(['a', 'b']);
+  });
+
   it('空 feature 列表 → ready 假,merged/held 空', async () => {
     const r = await makeWorktreeManager(mkRun(), { repoRoot }).batchIntegrate([], opts, async () => ({ ok: true }));
     expect(r).toEqual({ ready: false, merged: [], held: [] });

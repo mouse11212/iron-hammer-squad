@@ -236,7 +236,6 @@ export interface BatchDrainDeps {
   linkDeps: WorktreeManager['linkDeps'];
   repoRoot: string;
   runtimeDir: string;
-  relProjectDir: string;
   baseRef?: string;
   concurrency?: number;
 }
@@ -252,13 +251,17 @@ export interface BatchDrainResult {
  */
 export async function drainBatchIsolated(q: Queue, deps: BatchDrainDeps): Promise<BatchDrainResult> {
   const results: IsolatedResult[] = [];
+  // 记录每个 committed 分支所属项目目录(相对仓库根),供批后集成按项目路由 gate(多项目混批)。
+  const branchRel = new Map<string, string>();
   const worker = async (name: string): Promise<void> => {
     for (;;) {
       const job = q.claim(name);
       if (job === null) break;
       try {
-        const res = await deps.runOne(job.id, JSON.parse(job.prompt) as InnerLoopJobSpec);
+        const spec = JSON.parse(job.prompt) as InnerLoopJobSpec;
+        const res = await deps.runOne(job.id, spec);
         results.push(res);
+        if (res.committed && res.branch) branchRel.set(res.branch, relative(deps.repoRoot, spec.projectDir));
         if (res.result.status === 'done') q.ack(job.id, name, 0);
         else q.fail(job.id, name, res.result.status, 1);
       } catch (err) {
@@ -275,9 +278,11 @@ export async function drainBatchIsolated(q: Queue, deps: BatchDrainDeps): Promis
     integration = await deps.batchIntegrate(
       branches,
       { integrationBranch: 'integration', baseRef: deps.baseRef ?? 'HEAD', intWorktree },
-      async () => {
-        await deps.linkDeps(intWorktree, deps.relProjectDir);
-        return deps.integrationGate(join(intWorktree, deps.relProjectDir));
+      async (branch) => {
+        // 按该 feature 所属项目目录跑集成 gate(多项目混批:各 feature 在各自项目验证)
+        const rel = branchRel.get(branch) ?? '';
+        await deps.linkDeps(intWorktree, rel);
+        return deps.integrationGate(join(intWorktree, rel));
       },
     );
   }

@@ -52,11 +52,12 @@ export interface WorktreeManager {
   remove(worktreePath: string): Promise<void>;
   /** 集成分支兜底:feature squash-merge 进 integration(独立 worktree,不动 main)→ 跑集成 gate。 */
   integrate(featureBranch: string, opts: IntegrateOpts, gate: () => Promise<GateResult>): Promise<IntegrateResult>;
-  /** 批量集成 N 个 feature(军规 8):clean+green 合入,冲突/gate 红回滚并 held 升级;不动 main、不自动解冲突(军规 1)。 */
+  /** 批量集成 N 个 feature(军规 8):clean+green 合入,冲突/gate 红回滚并 held 升级;不动 main、不自动解冲突(军规 1)。
+   *  gatePerFeature 接收当前 feature 分支,使调用方可按项目路由 gate(支持多项目混批)。 */
   batchIntegrate(
     featureBranches: string[],
     opts: IntegrateOpts,
-    gatePerFeature: () => Promise<GateResult>,
+    gatePerFeature: (branch: string) => Promise<GateResult>,
   ): Promise<BatchIntegrateResult>;
 }
 
@@ -124,7 +125,7 @@ export function makeWorktreeManager(
           continue;
         }
         await run('git', ['-C', o.intWorktree, 'commit', '-m', `integrate ${branch}`], repoRoot);
-        const g = await gatePerFeature();
+        const g = await gatePerFeature(branch);
         if (!g.ok) {
           await run('git', ['-C', o.intWorktree, 'reset', '--hard', cur], repoRoot);
           held.push({ branch, reason: 'gate' });
