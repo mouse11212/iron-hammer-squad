@@ -1,5 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { buildPhaseArgs, parsePhaseResult } from '../src/invoke.js';
+import { buildPhaseArgs, parsePhaseResult, isTransientApiError } from '../src/invoke.js';
+
+describe('isTransientApiError（瞬时基础设施错误判别）', () => {
+  it.each([
+    'API Error: The socket connection was closed unexpectedly',
+    'fetch failed',
+    'Error: ECONNRESET',
+    'request timed out',
+    'overloaded_error',
+    'rate limit exceeded',
+    'HTTP 529',
+    'upstream connect error 503',
+  ])('瞬时错误 → true: %s', (t) => {
+    expect(isTransientApiError(t)).toBe(true);
+  });
+
+  it.each([
+    '测试断言失败: expected 9 to be 8',
+    'TypeError: x is not a function',
+    '实现缺失',
+    '',
+  ])('普通失败 → false: %s', (t) => {
+    expect(isTransientApiError(t)).toBe(false);
+  });
+});
 
 describe('buildPhaseArgs（纯构造 claude argv）', () => {
   it('新会话:用 --session-id,不含 --resume', () => {

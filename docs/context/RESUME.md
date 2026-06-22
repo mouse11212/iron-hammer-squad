@@ -33,10 +33,9 @@
 
 回修闭环已真实实证。✅ inner-loop 接入 M4 看板(成本埋点已产真实值);✅ `canonicalizeUrl` 接线 `aggregate`(规范化去重);✅ **事件驱动全链打通**——SQLite 入队→认领→dispatch→inner-loop→ack done(穿真实队列,`bin-enqueue-sqlite.ts`)。✅ **修复 harness 缺口**:inner-loop 变异门改为**按 git status 动态确定 mutate 范围**(`gates.ts` `mutateTargetsFromStatus`+`mutation()` 用 `--mutate` 覆盖静态 stryker.conf),dev 新建文件不再逃门;driver 变异门 92.64%,stryker `--mutate` 机制实测只变指定文件。✅ **动态变异门真 e2e 确认**:真跑 clampPercent US 暴露并修了子目录路径 bug(`git status --porcelain` 是仓库根相对 → 用 `git rev-parse --show-prefix` 剥成工程相对);实测修复后 gate 跑出 `npm run mutation -- --mutate src/clampPercent.ts`,ok。顺带加 gate 命令 trace(`gates.jsonl`,补阶段间观测盲点)。✅ **M5-B 完成**(M5 DoD 收尾):`worktree.ts`(隔离 worktree + symlink 依赖 + squash 仅 targetPaths + 集成分支兜底,**绝不写 main**/军规 1/2)+ `runIsolated` 编排 + dispatch 开关 `IH_ISOLATION=1`;真集成验证(真 git,无 claude:squash→集成全绿→main HEAD 不变→隔离→回收);worktree.ts 变异门 100%。**真集成又揪出子目录路径坑**(squash 的 `git -C` 用了 worktree 根而非 projectDir,第 3 次同类,已修+固化纪律)。✅ **①完成 批量多分支集成**(军规 8):`worktree.ts` `batchIntegrate`——N feature 汇入 integration,clean+green 合入、冲突/gate 红回滚 held 升级(**不自动解冲突**/军规1、**不写 main**/军规2);真 git 真冲突验证(a/b 冲突→b held、a/c 合入、main 不变、无 unmerged 残留);worktree.ts 变异门 96.72%。✅ **②完成 守护+批后集成**:runIsolated 解耦(只产 feature 分支,不 per-job 集成)+ `drainBatchIsolated`(N 路并行隔离 drain → 收集成功分支 → batchIntegrate)+ `driveParallelLoop`(轮询守护,连续空轮即停;main `IH_DAEMON=1`)。下一步:
 ✅ **③完成 全链真 e2e**:入队→drainBatchIsolated→隔离 worktree 内真 claude 跑内循环→done→squash 产分支→batchIntegrate→`{ready:true,merged:[agent/e2e-iso-1]}`→main 不变→回收(249s)。首跑撞瞬时 API 错误反向验证失败路径(不提交/不集成/回收正确)。
-**1/2/3 全部完成。** 下一步候选:
-① **harness 硬化:phase 瞬时 API 错误(socket 断)有限重试**(当前当硬失败→job failed;长跑会被网络抖动随机打断)——③ e2e 暴露,优先;
-② integration 跨批次累积 / 多项目混批 relProjectDir 动态推导 / held 通知;
-③ M6+(后续里程碑)。
+**1/2/3 全部完成。** ✅ **harness 硬化:phase 瞬时 API 错误有限重试**已落地(`isTransientApiError` + makeRunPhase 重试:默认 2 次线性退避、每次 fresh session-id;只重瞬时不重真失败;resume 失败回退 fresh 的瞬时也重)。闭合了 ③ e2e 暴露的稳定性短板。下一步候选:
+① integration 跨批次累积 / 多项目混批 relProjectDir 动态推导 / held 通知;
+② M6+(后续里程碑)。
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 

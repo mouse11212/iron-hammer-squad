@@ -55,6 +55,15 @@ export function parsePhaseResult(lines: string[]): PhaseMeta {
   };
 }
 
+// 瞬时基础设施错误信号(可重试):网络/连接/超时/过载/限流/5xx。
+// 仅匹配明确瞬时信号,不把普通失败(测试断言失败、实现错误)误判为可重试。
+const TRANSIENT = /socket|connection|econnreset|etimedout|timed?\s?out|overloaded|rate.?limit|fetch failed|network|closed unexpectedly|\b(?:429|500|502|503|529)\b/i;
+
+/** 判别 phase 结果文本是否为瞬时基础设施错误(可重试)。纯函数。 */
+export function isTransientApiError(text: string): boolean {
+  return TRANSIENT.test(text);
+}
+
 export interface PhaseInvokeResult extends PhaseMeta {
   exitCode: number;
 }

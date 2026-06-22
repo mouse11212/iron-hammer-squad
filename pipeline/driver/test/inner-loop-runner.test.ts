@@ -52,3 +52,39 @@ describe('makeRunPhase（装配 prompt + phaseInvoke + resume 回退）', () => 
     expect((phaseInvoke.mock.calls[1]![0] as { resume: boolean }).resume).toBe(false);
   });
 });
+
+describe('makeRunPhase 瞬时错误重试(②harness 硬化)', () => {
+  const counterId = () => {
+    let g = 0;
+    return () => `id-${++g}`;
+  };
+
+  it('新会话瞬时错误 → 重试成功,且重试用不同 session-id', async () => {
+    const phaseInvoke = vi
+      .fn<(i: unknown) => Promise<PhaseInvokeResult>>()
+      .mockResolvedValueOnce({ exitCode: 1, isError: true, result: 'API Error: socket closed unexpectedly' })
+      .mockResolvedValueOnce({ exitCode: 0, isError: false, result: '', sessionId: 'ok' });
+    const sleep = vi.fn(async () => {});
+    const out = await makeRunPhase(deps({ phaseInvoke, genId: counterId(), sleep, maxRetries: 2 }))({ role: 'test' });
+    expect(out.exitCode).toBe(0);
+    expect(phaseInvoke).toHaveBeenCalledTimes(2);
+    const id1 = (phaseInvoke.mock.calls[0]![0] as { sessionId: string }).sessionId;
+    const id2 = (phaseInvoke.mock.calls[1]![0] as { sessionId: string }).sessionId;
+    expect(id1).not.toBe(id2); // 每次重试换 fresh session-id
+    expect(sleep).toHaveBeenCalled();
+  });
+
+  it('非瞬时错误 → 不重试', async () => {
+    const phaseInvoke = vi.fn(async (): Promise<PhaseInvokeResult> => ({ exitCode: 1, isError: true, result: '测试断言失败' }));
+    const out = await makeRunPhase(deps({ phaseInvoke, sleep: vi.fn(async () => {}), maxRetries: 2 }))({ role: 'test' });
+    expect(out.exitCode).toBe(1);
+    expect(phaseInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('瞬时错误持续超上限 → 失败,不无限重试', async () => {
+    const phaseInvoke = vi.fn(async (): Promise<PhaseInvokeResult> => ({ exitCode: 1, isError: true, result: 'socket closed' }));
+    const out = await makeRunPhase(deps({ phaseInvoke, genId: counterId(), sleep: vi.fn(async () => {}), maxRetries: 2 }))({ role: 'test' });
+    expect(out.exitCode).toBe(1);
+    expect(phaseInvoke).toHaveBeenCalledTimes(3); // 1 + 2 重试
+  });
+});

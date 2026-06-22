@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildPhasePrompt, type PromptContext } from './prompts.js';
-import { makePhaseInvoke, type PhaseInvokeInput, type PhaseInvokeResult } from './invoke.js';
+import { makePhaseInvoke, isTransientApiError, type PhaseInvokeInput, type PhaseInvokeResult } from './invoke.js';
 import { makeGates, type CmdResult } from './gates.js';
 import { parseVerdict } from './verdict.js';
 import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } from './worktree.js';
@@ -30,10 +30,23 @@ export interface RunPhaseDeps {
   context: PromptContext;
   genId: () => string;
   onTrace?: (role: PhaseRole, line: string) => void;
+  /** 瞬时 API 错误重试上限(默认 2)。 */
+  maxRetries?: number;
+  /** 注入的退避等待(默认真 setTimeout)。 */
+  sleep?: (ms: number) => Promise<void>;
+  /** 瞬时错误判别(默认 isTransientApiError)。 */
+  isTransient?: (text: string) => boolean;
 }
 
-/** 装配单个角色 phase 的执行:合成 prompt → phaseInvoke → resume 失败回退 fresh spawn。 */
+/**
+ * 装配单个角色 phase:合成 prompt → phaseInvoke → resume 失败回退 fresh → 瞬时 API 错误有限重试。
+ * 重试只针对瞬时基础设施抖动(非模型/代码失败),每次换 fresh session-id(避免同 id 残留冲突)。
+ */
 export function makeRunPhase(deps: RunPhaseDeps): (input: PhaseInput) => Promise<PhaseOutput> {
+  const maxRetries = deps.maxRetries ?? 2;
+  const sleep = deps.sleep ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)));
+  const isTransient = deps.isTransient ?? isTransientApiError;
+
   return async (input: PhaseInput): Promise<PhaseOutput> => {
     const prompt = buildPhasePrompt({
       role: input.role,
@@ -43,17 +56,37 @@ export function makeRunPhase(deps: RunPhaseDeps): (input: PhaseInput) => Promise
       mustFix: input.mustFix,
     });
     const onTraceLine = deps.onTrace ? (line: string): void => deps.onTrace!(input.role, line) : undefined;
-    const resume = input.resumeSessionId !== undefined;
-    const sessionId = input.resumeSessionId ?? deps.genId();
 
-    let res = await deps.phaseInvoke({ prompt, sessionId, resume, onTraceLine });
-    let resumed = resume;
-    if (resume && res.isError) {
-      // resume 失败 → 回退 fresh spawn(新 session;prompt 已含 must-fix + 读盘上下文)
-      res = await deps.phaseInvoke({ prompt, sessionId: deps.genId(), resume: false, onTraceLine });
-      resumed = false;
+    let lastSessionId = '';
+    // 新会话(可对瞬时错误重试,每次 fresh id)
+    const runFresh = async (): Promise<PhaseInvokeResult> => {
+      lastSessionId = deps.genId();
+      let r = await deps.phaseInvoke({ prompt, sessionId: lastSessionId, resume: false, onTraceLine });
+      let n = 0;
+      while (r.isError && isTransient(r.result) && n < maxRetries) {
+        n++;
+        await sleep(500 * n); // 线性退避
+        lastSessionId = deps.genId();
+        r = await deps.phaseInvoke({ prompt, sessionId: lastSessionId, resume: false, onTraceLine });
+      }
+      return r;
+    };
+
+    let res: PhaseInvokeResult;
+    let resumed = false;
+    if (input.resumeSessionId !== undefined) {
+      lastSessionId = input.resumeSessionId;
+      res = await deps.phaseInvoke({ prompt, sessionId: lastSessionId, resume: true, onTraceLine });
+      resumed = true;
+      if (res.isError) {
+        // resume 失败(含瞬时)→ 回退 fresh(其瞬时错误也纳入重试)
+        res = await runFresh();
+        resumed = false;
+      }
+    } else {
+      res = await runFresh();
     }
-    return { exitCode: res.exitCode, sessionId: res.sessionId ?? sessionId, resumed, costUsd: res.costUsd };
+    return { exitCode: res.exitCode, sessionId: res.sessionId ?? lastSessionId, resumed, costUsd: res.costUsd };
   };
 }
 
