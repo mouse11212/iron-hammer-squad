@@ -6,7 +6,8 @@
 ## 当前状态（诚实标注）
 
 抽取线方案 A：能力先在 fincards 上验证（M0–M8），验证后抽取到此目录。**当前为 E5+**——E0(角色/质量门/Guide/编排剧本)+ E3(`driver/` ① Loop 引擎:事件触发+claude -p)+ E4(`metrics/` ② 可观测:四指标+追溯链+看板)+ E5(`driver/` 并行多消费者:`node:sqlite` 事务原子认领队列 + N 路并行 worker + stdio MCP)+ **inner-loop 自动编排(`driver/` 把 `kind='inner-loop'` 的 job 自动跑完整多角色 PEV:测试→开发→评审,阶段间确定性 gate,must-fix 热上下文 `--resume` 回修闭环 + 止损 + 域归属;全程 stream-json trace 可观测。验证来源:fincards `relativeTime` 端到端 243s/done,变异门 93.31%)**。
-**仍待完善**：① 回修闭环目前仅单测覆盖,端到端 fixRounds=0(happy path),真实 must-fix 回修实证待一个会产生 must-fix 的 US;② per-job state/usage 接入 metrics 看板;③ M5-B(worktree 隔离 + 集成分支 + squash)待做。
+**已补完**:回修闭环真实实证(canonicalizeUrl/clampPercent,resume 续接同一 session);per-job state/usage(含成本)入 metrics 看板;变异门按 git diff 动态范围(新文件不逃门);**M5-B worktree 隔离 + squash + 集成分支兜底(军规 3/8,绝不写 main,真集成验证)**。
+**仍待完善**:① N 并发多分支集成的冲突解决(军规 8 完整态,待真实冲突);② 并行 driver 常驻/轮询守护(当前 drain-once);③ 真 inner-loop 隔离 e2e(逻辑+真集成已证)。
 
 ## 结构（对应 V4 三层模型）
 
@@ -31,8 +32,9 @@ pipeline/
 │       ├── drive-parallel.ts   # M5-A/E5 N 路并行 worker pool + dispatch(kind=inner-loop→内循环)
 │       ├── mcp-server.ts       # M5-A/E5 stdio MCP 封装(enqueue/claim/ack/fail/status)
 │       ├── inner-loop.ts       # M5 PEV 状态机(纯逻辑:回修止损+域归属+升级)
-│       ├── {verdict,gates,prompts}.ts  # M5 评审解析 / 确定性 gate / 角色 prompt 合成
-│       └── inner-loop-runner.ts # M5 真实装配(makePhaseInvoke+gates+verdict→runInnerLoop+per-job state/trace)
+│       ├── {verdict,gates,prompts}.ts  # M5 评审解析 / 确定性 gate(变异门按 git diff 动态范围)/ 角色 prompt
+│       ├── worktree.ts         # M5-B worktree 隔离 + squash + 集成分支兜底(军规 3/8;绝不写 main)
+│       └── inner-loop-runner.ts # M5 真实装配 + M5-B runIsolated(worktree 隔离编排)
 └── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
     ├── src/{types,compute,trace,board,collect,bin-report}.ts
     └── data/{traces,defects}.json

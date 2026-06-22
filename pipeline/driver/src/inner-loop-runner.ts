@@ -1,13 +1,21 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildPhasePrompt, type PromptContext } from './prompts.js';
 import { makePhaseInvoke, type PhaseInvokeInput, type PhaseInvokeResult } from './invoke.js';
 import { makeGates, type CmdResult } from './gates.js';
 import { parseVerdict } from './verdict.js';
-import { runInnerLoop, type PhaseInput, type PhaseOutput, type PhaseRole, type InnerLoopResult } from './inner-loop.js';
+import { makeWorktreeManager, type WorktreeManager } from './worktree.js';
+import {
+  runInnerLoop,
+  type PhaseInput,
+  type PhaseOutput,
+  type PhaseRole,
+  type InnerLoopResult,
+  type GateResult,
+} from './inner-loop.js';
 
 // 集成胶水:把 prompts + phaseInvoke + gates + verdict 装配成 runInnerLoop 的 deps。
 // makeRunPhase 含 resume 失败回退(纯逻辑可测);runInnerLoopJob 是真实 IO 装配(端到端覆盖)。
@@ -137,4 +145,83 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
   const record = { jobId, ...result, costUsd };
   writeFileSync(join(runsDir, 'state.json'), JSON.stringify(record, null, 2), 'utf8');
   return result;
+}
+
+// ───────── M5-B:worktree 隔离编排(V4 §9 军规 3/8)─────────
+
+export interface IsolatedDeps {
+  wt: WorktreeManager;
+  runJob: (jobId: string, spec: InnerLoopJobSpec) => Promise<InnerLoopResult>;
+  /** 在给定 projectDir 跑集成 gate(green)。 */
+  integrationGate: (projectDir: string) => Promise<GateResult>;
+  repoRoot: string;
+  runtimeDir: string;
+  baseRef?: string;
+}
+
+export interface IsolatedResult {
+  result: InnerLoopResult;
+  /** 集成分支全绿、可供人类合 main 的就绪态。 */
+  ready: boolean;
+}
+
+/**
+ * worktree 隔离编排:建 worktree → 软链依赖 → inner-loop 在 worktree 内跑 →
+ * done 则 squash 提交 + 集成分支兜底(全绿才 ready)→ finally 回收 worktree。
+ * 绝不写 main(军规 1/2:main 合并是 HITL)。纯编排,deps 全注入。
+ */
+export async function runIsolated(
+  jobId: string,
+  spec: InnerLoopJobSpec,
+  deps: IsolatedDeps,
+): Promise<IsolatedResult> {
+  const relProjectDir = relative(deps.repoRoot, spec.projectDir);
+  const baseRef = deps.baseRef ?? 'HEAD';
+  const wtInfo = await deps.wt.create(jobId, baseRef);
+  try {
+    await deps.wt.linkDeps(wtInfo.path, relProjectDir);
+    const result = await deps.runJob(jobId, { ...spec, projectDir: join(wtInfo.path, relProjectDir) });
+
+    let ready = false;
+    if (result.status === 'done') {
+      const committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), spec.targetPaths ?? [], `feat(${jobId}): inner-loop 交付`);
+      if (committed) {
+        const intWorktree = join(deps.runtimeDir, '_integration');
+        const r = await deps.wt.integrate(
+          wtInfo.branch,
+          { integrationBranch: 'integration', baseRef, intWorktree },
+          async () => {
+            await deps.wt.linkDeps(intWorktree, relProjectDir); // 集成 worktree 也需依赖软链
+            return deps.integrationGate(join(intWorktree, relProjectDir));
+          },
+        );
+        ready = r.ready;
+      }
+    }
+    return { result, ready };
+  } finally {
+    await deps.wt.remove(wtInfo.path); // 军规 3:完成即回收
+  }
+}
+
+/** 真实装配:供 driver dispatch 调用(隔离模式)。 */
+export async function runInnerLoopJobIsolated(jobId: string, spec: InnerLoopJobSpec): Promise<IsolatedResult> {
+  const pipeline = pipelineDir();
+  const repoRoot = join(pipeline, '..');
+  const runtimeDir = join(pipeline, '.runtime', 'worktrees');
+  const cmd = makeCmdRunner();
+  const wt = makeWorktreeManager(cmd, { repoRoot, runtimeDir });
+  const out = await runIsolated(jobId, spec, {
+    wt,
+    runJob: runInnerLoopJob,
+    integrationGate: (projectDir) => makeGates(cmd, { cwd: projectDir }).green(),
+    repoRoot,
+    runtimeDir,
+  });
+  // 集成就绪信号落盘(可观测;HITL 据此决定是否合 main)
+  appendFileSync(
+    join(pipeline, '.runtime', 'runs', jobId, 'integration.json'),
+    JSON.stringify({ jobId, status: out.result.status, integrationReady: out.ready }),
+  );
+  return out;
 }

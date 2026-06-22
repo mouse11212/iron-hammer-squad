@@ -1,7 +1,7 @@
 import type { InvokeFn } from './types.js';
 import { openQueue, type Queue } from './queue-sqlite.js';
 import { makeClaudeInvoke } from './invoke.js';
-import { runInnerLoopJob, type InnerLoopJobSpec } from './inner-loop-runner.js';
+import { runInnerLoopJob, runInnerLoopJobIsolated, type InnerLoopJobSpec } from './inner-loop-runner.js';
 import type { InnerLoopResult } from './inner-loop.js';
 
 // 并行多消费者驱动(M5-A/D9):取代 M3 单消费者文件队列 drain。
@@ -16,6 +16,10 @@ export type InnerRunner = (jobId: string, prompt: string) => Promise<InnerLoopRe
 /** 默认派发器:job.prompt 是 InnerLoopJobSpec 的 JSON。 */
 const defaultRunInner: InnerRunner = (jobId, prompt) =>
   runInnerLoopJob(jobId, JSON.parse(prompt) as InnerLoopJobSpec);
+
+/** 隔离派发器(M5-B):在独立 worktree 内跑 + squash + 集成兜底;返回 inner-loop 结果供 ack/fail。 */
+export const defaultRunInnerIsolated: InnerRunner = (jobId, prompt) =>
+  runInnerLoopJobIsolated(jobId, JSON.parse(prompt) as InnerLoopJobSpec).then((x) => x.result);
 
 /** 单个 worker:循环认领→按 kind 派发→ack/fail,队列抽干即退出,返回处理数。 */
 async function worker(name: string, q: Queue, invoke: InvokeFn, runInner?: InnerRunner): Promise<number> {
@@ -66,11 +70,12 @@ export async function driveParallelOnce(
   }
 }
 
-// 直接运行:node drive-parallel.js <dbPath> [concurrency]
+// 直接运行:node drive-parallel.js <dbPath> [concurrency]；IH_ISOLATION=1 → 每个 inner-loop 走 worktree 隔离(M5-B)
 if (import.meta.url === `file://${process.argv[1]}`) {
   const dbPath = process.argv[2] ?? new URL('../../.runtime/queue.db', import.meta.url).pathname;
   const concurrency = Number(process.argv[3] ?? 2);
-  void driveParallelOnce(dbPath, makeClaudeInvoke(), concurrency).then((n) =>
-    console.log(`[driver] 并行处理完成,共 ${n} 条`),
+  const runInner = process.env.IH_ISOLATION ? defaultRunInnerIsolated : defaultRunInner;
+  void driveParallelOnce(dbPath, makeClaudeInvoke(), concurrency, runInner).then((n) =>
+    console.log(`[driver] 并行处理完成,共 ${n} 条${process.env.IH_ISOLATION ? '(worktree 隔离)' : ''}`),
   );
 }

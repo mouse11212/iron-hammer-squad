@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "testRunner": "vitest",
-  "mutate": ["src/inner-loop.ts", "src/verdict.ts", "src/gates.ts"],
+  "mutate": ["src/inner-loop.ts", "src/verdict.ts", "src/gates.ts", "src/worktree.ts"],
   "reporters": ["clear-text", "progress"],
   "coverageAnalysis": "perTest",
   "timeoutMS": 60000,
