@@ -10,6 +10,8 @@ import { parseVerdict } from './verdict.js';
 import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } from './worktree.js';
 import { renderHandoffReport } from './handoff.js';
 import { makeOrchestratorFix } from './orchestrator-fix.js';
+import { makeEventSink, type EventSink } from './events.js';
+import { instrumentRunPhase, instrumentGateCmd, instrumentOrchestratorFix, emitSquash, emitIntegrate } from './instrument.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -132,6 +134,9 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
   mkdirSync(runsDir, { recursive: true });
   const verdictPath = join(runsDir, 'verdict.json');
 
+  // 统一事件日志(M4+):全链操作落中心 events.jsonl,traceId=jobId,可凭 jobId 回放(bin-replay)。
+  const ictx = { traceId: jobId, emit: makeEventSink(join(pipeline, '.runtime', 'events.jsonl')), clock: (): number => Date.now() };
+
   const conventionsDoc = readFileSync(join(pipeline, 'guides', 'agent-conventions.md'), 'utf8');
   const context: PromptContext = {
     specSlice: spec.specSlice,
@@ -152,13 +157,11 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
       appendFileSync(join(runsDir, `${role}-${attempt}.jsonl`), line + '\n');
     },
   });
+  // 统一事件:每个 phase 起止发结构化 phase 事件(原始 claude 流仍留 ${role}-*.jsonl 作深度调试)。
+  const instrumentedRunPhase = instrumentRunPhase(runPhase, ictx);
 
-  // gate 命令日志(可观测:阶段间确定性 gate 也落 trace,补 phase trace 之外的盲点)
-  const baseCmd = makeCmdRunner();
-  const cmd: typeof baseCmd = (c, a, cwd) => {
-    appendFileSync(join(runsDir, 'gates.jsonl'), JSON.stringify({ cmd: c, args: a }) + '\n');
-    return baseCmd(c, a, cwd);
-  };
+  // gate 命令路由进统一事件(补 exitCode/durationMs,取代旧 gates.jsonl 仅记 {cmd,args})。
+  const cmd = instrumentGateCmd(makeCmdRunner(), ictx);
   const gates = makeGates(cmd, { cwd: spec.projectDir });
 
   let costUsd = 0; // 跨所有 phase(含回修)累加的 claude 调用成本(可度量,供 metrics 聚合)
@@ -168,18 +171,21 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
       runPhase: async (input) => {
         // 每次进入某 role 递增 trace attempt(回修轮分文件)
         traceCounters.set(input.role, (traceCounters.get(input.role) ?? -1) + 1);
-        const out = await runPhase(input);
+        const out = await instrumentedRunPhase(input); // 发 phase 事件 + 透传
         costUsd += out.costUsd ?? 0;
         return out;
       },
       gates,
       readVerdict: async () => parseVerdict(readFileSync(verdictPath, 'utf8')),
       // orchestrator 代修(白名单):review 标 orchestrator 域的 must-fix(如登记 stryker.conf)由编排层确定性处理
-      orchestratorFix: makeOrchestratorFix({
-        projectDir: spec.projectDir,
-        readFile: (p) => readFileSync(p, 'utf8'),
-        writeFile: (p, c) => writeFileSync(p, c, 'utf8'),
-      }),
+      orchestratorFix: instrumentOrchestratorFix(
+        makeOrchestratorFix({
+          projectDir: spec.projectDir,
+          readFile: (p) => readFileSync(p, 'utf8'),
+          writeFile: (p, c) => writeFileSync(p, c, 'utf8'),
+        }),
+        ictx,
+      ),
     },
   );
 
@@ -196,6 +202,10 @@ export interface IsolatedDeps {
   runJob: (jobId: string, spec: InnerLoopJobSpec) => Promise<InnerLoopResult>;
   repoRoot: string;
   baseRef?: string;
+  /** 统一事件 sink(可选):提供则发 squash 事件(traceId=jobId)。 */
+  emit?: EventSink;
+  /** 注入时钟(epoch ms);缺省真实 Date.now。 */
+  clock?: () => number;
 }
 
 export interface IsolatedResult {
@@ -226,6 +236,9 @@ export async function runIsolated(
       // squash 动态据 git status 捕获实际改动(不再传 targetPaths——agent 写在哪/什么名都正确捕获)
       committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), `feat(${jobId}): inner-loop 交付`);
     }
+    if (deps.emit) {
+      emitSquash({ traceId: jobId, emit: deps.emit, clock: deps.clock ?? ((): number => Date.now()) }, { committed, branch: committed ? wtInfo.branch : undefined });
+    }
     return { result, branch: committed ? wtInfo.branch : undefined, committed };
   } finally {
     await deps.wt.remove(wtInfo.path); // 军规 3:完成即回收
@@ -245,6 +258,10 @@ export interface BatchDrainDeps {
   concurrency?: number;
   /** 批后集成完成后的 HITL 交接钩子(产出报告/通知);仅在本批有 job 时触发。 */
   onHandoff?: (integration: BatchIntegrateResult | null) => void;
+  /** 统一事件 sink(可选):提供则每个 merged/held 分支发 integrate 事件(traceId 由分支名反推 jobId)。 */
+  emit?: EventSink;
+  /** 注入时钟(epoch ms);缺省真实 Date.now。 */
+  clock?: () => number;
 }
 
 export interface BatchDrainResult {
@@ -293,6 +310,12 @@ export async function drainBatchIsolated(q: Queue, deps: BatchDrainDeps): Promis
       },
     );
   }
+  if (integration && deps.emit) {
+    // 集成结局落统一事件:traceId 由分支名 agent/<jobId> 反推回各 US,可凭 jobId 回放出集成结局。
+    const clock = deps.clock ?? ((): number => Date.now());
+    for (const b of integration.merged) emitIntegrate(deps.emit, clock, { branch: b, status: 'merged' });
+    for (const h of integration.held) emitIntegrate(deps.emit, clock, { branch: h.branch, status: 'held', reason: h.reason });
+  }
   if (results.length > 0) deps.onHandoff?.(integration); // 本批有 job → HITL 交接(含全 held/无产出场景)
   return { handled: results.length, integration };
 }
@@ -319,7 +342,8 @@ export async function runInnerLoopJobIsolated(jobId: string, spec: InnerLoopJobS
   const runtimeDir = join(pipeline, '.runtime', 'worktrees');
   const cmd = makeCmdRunner();
   const wt = makeWorktreeManager(cmd, { repoRoot, runtimeDir });
-  return runIsolated(jobId, spec, { wt, runJob: runInnerLoopJob, repoRoot });
+  const emit = makeEventSink(join(pipeline, '.runtime', 'events.jsonl'));
+  return runIsolated(jobId, spec, { wt, runJob: runInnerLoopJob, repoRoot, emit });
 }
 
 export interface RealBatchOpts {
@@ -349,6 +373,7 @@ export function makeRealBatchDeps(opts: RealBatchOpts = {}): BatchDrainDeps {
     repoRoot,
     runtimeDir,
     onHandoff: makeDefaultHandoff(runtimeRoot),
+    emit: makeEventSink(join(runtimeRoot, 'events.jsonl')), // 批后集成事件落统一日志
     concurrency: opts.concurrency,
     baseRef: opts.baseRef,
   };

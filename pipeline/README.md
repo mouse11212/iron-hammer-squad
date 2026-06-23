@@ -68,6 +68,13 @@ npx tsx src/mcp-server.ts <queue.db>   # 工具:enqueue/claim/ack/fail/status
 ```
 单消费者用文件队列(零依赖回退);**并行多消费者必须用 `queue-sqlite`**——`rename` 文件认领在多进程下会双领(D9)。SQLite 队列用单条 `UPDATE...RETURNING` 在写事务内原子认领,WAL + `busy_timeout` 承受并发(已用 4 进程抢 500 条压测零双领)。
 
+**统一事件日志 + 全链路回放(M4+ 地基切片):** inner-loop 全链的关键操作(`phase`/`gate`/`squash`/`integrate`/`orchestrator-fix`)各落一条带 `traceId`(=jobId,贯穿一个 US 全链)的结构化事件到中心 `<pipeline>/.runtime/events.jsonl`(append-only,已 gitignore)。
+```bash
+# 凭 jobId(=traceId) 回放一个 US 的全链操作事件(按 ts 排序:phase→gate→squash→integrate)
+npm run replay -- <traceId> [eventsPath]
+```
+schema 含 `durationMs` 字段(为后续 Verification Tax 切片预埋钩子)。埋点为 computational sensor:纯构造器 + 时钟注入(确定可测),IO 锁在薄 sink(`events.ts`/`replay.ts`/`instrument.ts`,变异门 100%/85%/100%)。**未做(留后续切片):** 追溯链自动织链、Verification Tax 计算、Defect Escape 自动喂。
+
 ## 终极形态：可安装为 Claude Code 技能/插件（目标，持续完善）
 
 `pipeline/` 的最终目标是**打包成一个 Claude Code 插件/技能集**——别人(或新项目)通过 marketplace/`.claude/` 安装后，即获得这条 harness SDLC 流水线(角色 skills + gates + hooks + 编排驱动 + 入口命令)。

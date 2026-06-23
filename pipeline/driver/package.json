@@ -13,7 +13,8 @@
     "drive": "tsx src/loop.ts",
     "drive-parallel": "tsx src/drive-parallel.ts",
     "enqueue": "tsx src/bin-enqueue.ts",
-    "enqueue-sqlite": "tsx src/bin-enqueue-sqlite.ts"
+    "enqueue-sqlite": "tsx src/bin-enqueue-sqlite.ts",
+    "replay": "tsx src/bin-replay.ts"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",
