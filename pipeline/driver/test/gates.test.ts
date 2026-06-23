@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { makeGates, mutateTargetsFromStatus } from '../src/gates.js';
+import { makeGates, mutateTargetsFromStatus, changedPathsFromStatus } from '../src/gates.js';
 import type { CmdResult } from '../src/gates.js';
 
 const okRes: CmdResult = { exitCode: 0, stdout: '', stderr: '' };
@@ -183,5 +183,44 @@ describe('mutateTargetsFromStatus（纯解析 git status → 待变异源文件�
 
   it('去重(同文件多状态行只算一次)', () => {
     expect(mutateTargetsFromStatus('MM src/a.ts\n M src/a.ts\n')).toEqual(['src/a.ts']);
+  });
+});
+
+describe('changedPathsFromStatus（纯解析 git status → 本切片全部改动路径,供动态 squash add）', () => {
+  it('捕获所有改动,不限扩展名/目录(src + test + 配置都进)', () => {
+    const out = changedPathsFromStatus('?? src/formatCompactNumber.ts\n?? test/formatCompactNumber.test.ts\n M src/x.json\n');
+    expect(out).toEqual(['src/formatCompactNumber.ts', 'test/formatCompactNumber.test.ts', 'src/x.json']);
+  });
+
+  it('包括已删除文件(D)——squash 须提交删除,这是与 mutate 解析的关键区别', () => {
+    expect(changedPathsFromStatus(' D src/gone.ts\n M src/keep.ts\n')).toEqual(['src/gone.ts', 'src/keep.ts']);
+  });
+
+  it('子目录工程:prefix 剥成工程相对,工程外改动排除', () => {
+    const porcelain =
+      ' M pipeline/driver/src/x.ts\n' + // 工程外 → 排除
+      '?? iron-hammer-output/fincards/src/formatCompactNumber.ts\n' +
+      '?? iron-hammer-output/fincards/test/formatCompactNumber.test.ts\n'; // test 也要(不像 mutate 排除)
+    expect(changedPathsFromStatus(porcelain, 'iron-hammer-output/fincards/')).toEqual([
+      'src/formatCompactNumber.ts',
+      'test/formatCompactNumber.test.ts',
+    ]);
+  });
+
+  it('重命名取新路径', () => {
+    expect(changedPathsFromStatus('R  src/old.ts -> src/new.ts\n')).toEqual(['src/new.ts']);
+  });
+
+  it('去引号(含空格路径)', () => {
+    expect(changedPathsFromStatus('?? "test/a b.test.ts"\n')).toEqual(['test/a b.test.ts']);
+  });
+
+  it('空 / 仅空行 → []', () => {
+    expect(changedPathsFromStatus('')).toEqual([]);
+    expect(changedPathsFromStatus('\n\n')).toEqual([]);
+  });
+
+  it('去重', () => {
+    expect(changedPathsFromStatus('MM src/a.ts\n M src/a.ts\n')).toEqual(['src/a.ts']);
   });
 });

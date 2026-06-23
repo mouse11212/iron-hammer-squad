@@ -33,19 +33,47 @@ describe('makeWorktreeManager（注入 runner，断言 git 命令序列）', () 
     );
   });
 
-  it('squashCommit:add 指定切片文件 + commit(不盲加 -A),exit0 → true', async () => {
-    const run = recRun();
-    const done = await makeWorktreeManager(run, { repoRoot }).squashCommit('/wt', ['src/a.ts', 'test/a.test.ts'], 'msg');
+  it('squashCommit:动态据 git status 捕获实际改动(不依赖外部 targetPaths),剥 prefix 成工程相对 add + commit → true', async () => {
+    const fincards = '/wt/iron-hammer-output/fincards';
+    const run = vi.fn(async (_c: string, a: string[]): Promise<CmdResult> => {
+      if (a.includes('--show-prefix')) return { exitCode: 0, stdout: 'iron-hammer-output/fincards/\n', stderr: '' };
+      if (a.includes('status'))
+        return {
+          exitCode: 0,
+          // agent 实际写在 test/(项目约定),命名自定——动态捕获,不要求外部预测
+          stdout: '?? iron-hammer-output/fincards/src/formatCompactNumber.ts\n?? iron-hammer-output/fincards/test/formatCompactNumber.test.ts\n',
+          stderr: '',
+        };
+      return ok;
+    });
+    const done = await makeWorktreeManager(run, { repoRoot }).squashCommit(fincards, 'msg');
     expect(done).toBe(true);
-    expect(run).toHaveBeenCalledWith('git', ['-C', '/wt', 'add', 'src/a.ts', 'test/a.test.ts'], repoRoot);
-    expect(run).toHaveBeenCalledWith('git', ['-C', '/wt', 'commit', '-m', 'msg'], repoRoot);
+    // 动态捕获三步:show-prefix 取工程相对前缀 → status 列改动 → add 实际改动 → commit
+    expect(run).toHaveBeenCalledWith('git', ['-C', fincards, 'rev-parse', '--show-prefix'], repoRoot);
+    expect(run).toHaveBeenCalledWith('git', ['-C', fincards, 'status', '--porcelain'], repoRoot);
+    expect(run).toHaveBeenCalledWith(
+      'git',
+      ['-C', fincards, 'add', 'src/formatCompactNumber.ts', 'test/formatCompactNumber.test.ts'],
+      repoRoot,
+    );
+    expect(run).toHaveBeenCalledWith('git', ['-C', fincards, 'commit', '-m', 'msg'], repoRoot);
   });
 
-  it('squashCommit:commit 非 0(无改动)→ false', async () => {
+  it('squashCommit:无改动(status 空)→ 跳过 commit → false(不空提交)', async () => {
     const run = vi.fn(async (_c: string, a: string[]): Promise<CmdResult> =>
-      a.includes('commit') ? { exitCode: 1, stdout: '', stderr: 'nothing to commit' } : ok,
+      a.includes('status') ? { exitCode: 0, stdout: '', stderr: '' } : ok,
     );
-    expect(await makeWorktreeManager(run, { repoRoot }).squashCommit('/wt', ['src/a.ts'], 'm')).toBe(false);
+    expect(await makeWorktreeManager(run, { repoRoot }).squashCommit('/wt', 'm')).toBe(false);
+    expect(run).not.toHaveBeenCalledWith('git', expect.arrayContaining(['commit']), repoRoot);
+  });
+
+  it('squashCommit:有改动但 commit 非 0 → false', async () => {
+    const run = vi.fn(async (_c: string, a: string[]): Promise<CmdResult> => {
+      if (a.includes('status')) return { exitCode: 0, stdout: '?? src/a.ts\n', stderr: '' };
+      if (a.includes('commit')) return { exitCode: 1, stdout: '', stderr: 'fail' };
+      return ok;
+    });
+    expect(await makeWorktreeManager(run, { repoRoot }).squashCommit('/wt', 'm')).toBe(false);
   });
 
   it('remove:git worktree remove --force', async () => {

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { CmdRunner } from './gates.js';
+import { changedPathsFromStatus, type CmdRunner } from './gates.js';
 import type { GateResult } from './inner-loop.js';
 
 // M5-B(V4 §9 军规 3/8):inner-loop 的 git worktree 隔离 + 集成分支兜底 + squash。
@@ -46,8 +46,8 @@ export interface WorktreeManager {
   create(jobId: string, baseRef: string): Promise<WorktreeInfo>;
   /** 把主检出工程的 node_modules 软链进 worktree(worktree 不检出 gitignore 的依赖)。 */
   linkDeps(worktreePath: string, relProjectDir: string): Promise<void>;
-  /** 在 projectDir 下把切片改动(仅 targetPaths,相对 projectDir,不盲加 -A)提交为单 commit;无改动→false。 */
-  squashCommit(projectDir: string, targetPaths: string[], message: string): Promise<boolean>;
+  /** 在 projectDir 下把切片实际改动(据 git status 动态捕获,不依赖外部声明,不盲加 -A)提交为单 commit;无改动→false。 */
+  squashCommit(projectDir: string, message: string): Promise<boolean>;
   /** 回收 feature worktree(军规 3)。 */
   remove(worktreePath: string): Promise<void>;
   /** 集成分支兜底:feature squash-merge 进 integration(独立 worktree,不动 main)→ 跑集成 gate。 */
@@ -82,9 +82,15 @@ export function makeWorktreeManager(
       await run('ln', ['-sfn', src, dst], repoRoot);
     },
 
-    async squashCommit(projectDir, targetPaths, message) {
-      // 在 projectDir 下 add(targetPaths 相对 projectDir),再从同处 commit 到 worktree 当前分支。
-      await run('git', ['-C', projectDir, 'add', ...targetPaths], repoRoot);
+    async squashCommit(projectDir, message) {
+      // 动态据 git status 捕获本切片实际改动(不依赖外部预声明 targetPaths——预测错路径/命名会
+      // 静默丢弃 done 的成果,真 e2e 揪出的缺口)。porcelain 是仓库根相对,show-prefix 剥成工程相对;
+      // porcelain 默认不列 .gitignore 忽略项(变异沙箱/依赖),故 add 天然安全,不盲加 -A。
+      const prefix = (await run('git', ['-C', projectDir, 'rev-parse', '--show-prefix'], repoRoot)).stdout.trim();
+      const status = await run('git', ['-C', projectDir, 'status', '--porcelain'], repoRoot);
+      const paths = changedPathsFromStatus(status.stdout, prefix);
+      if (paths.length === 0) return false; // 无改动→不空提交
+      await run('git', ['-C', projectDir, 'add', ...paths], repoRoot);
       const c = await run('git', ['-C', projectDir, 'commit', '-m', message], repoRoot);
       return c.exitCode === 0;
     },

@@ -51,6 +51,9 @@ export interface InnerLoopDeps {
     mutation: () => Promise<GateResult>;
   };
   readVerdict: () => Promise<Verdict>;
+  /** orchestrator 确定性代修(白名单,非 agent):处理 review 标 orchestrator 域的 must-fix(如登记 stryker.conf)。
+   *  不注入=无此能力→遇到即 escalated(向后兼容,不静默吞)。 */
+  orchestratorFix?: (fixes: MustFix[]) => Promise<GateResult>;
 }
 
 export type InnerLoopStatus = 'done' | 'failed' | 'blocked-escalated';
@@ -132,8 +135,19 @@ export async function runInnerLoop(job: InnerLoopJob, deps: InnerLoopDeps): Prom
       return { status: 'blocked-escalated', fixRounds: round, reason: 'must-fix 回修超限', sessions, residual: verdict.mustFix };
     }
     round++;
+    const orchFixes = verdict.mustFix.filter((m) => m.domain === 'orchestrator');
     const testFixes = verdict.mustFix.filter((m) => m.domain === 'test');
     const implFixes = verdict.mustFix.filter((m) => m.domain === 'impl');
+    // orchestrator 域:编排层确定性代修(非 agent,CLAUDE.md 红线 4 角色不混同)。无能力/代修失败 → escalated(红线 6 阻塞升级,不静默吞)。
+    if (orchFixes.length > 0) {
+      if (!deps.orchestratorFix) {
+        return { status: 'blocked-escalated', fixRounds: round, reason: '需 orchestrator 代修但未注入该能力', sessions, residual: orchFixes };
+      }
+      const fixed = await deps.orchestratorFix(orchFixes);
+      if (!fixed.ok) {
+        return { status: 'blocked-escalated', fixRounds: round, reason: `orchestrator 代修失败:${fixed.summary ?? ''}`, sessions, residual: orchFixes };
+      }
+    }
     if (testFixes.length > 0) {
       const r = await deps.runPhase({ role: 'test', resumeSessionId: sessions.test, mustFix: testFixes });
       sessions.test = r.sessionId;

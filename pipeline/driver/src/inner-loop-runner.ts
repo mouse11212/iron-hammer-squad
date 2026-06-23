@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { buildPhasePrompt, type PromptContext } from './prompts.js';
 import { makePhaseInvoke, isTransientApiError, type PhaseInvokeInput, type PhaseInvokeResult } from './invoke.js';
-import { makeGates, type CmdResult } from './gates.js';
+import { makeGates, type CmdResult, type CmdRunner } from './gates.js';
 import { parseVerdict } from './verdict.js';
 import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } from './worktree.js';
 import { renderHandoffReport } from './handoff.js';
+import { makeOrchestratorFix } from './orchestrator-fix.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -173,6 +174,12 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
       },
       gates,
       readVerdict: async () => parseVerdict(readFileSync(verdictPath, 'utf8')),
+      // orchestrator 代修(白名单):review 标 orchestrator 域的 must-fix(如登记 stryker.conf)由编排层确定性处理
+      orchestratorFix: makeOrchestratorFix({
+        projectDir: spec.projectDir,
+        readFile: (p) => readFileSync(p, 'utf8'),
+        writeFile: (p, c) => writeFileSync(p, c, 'utf8'),
+      }),
     },
   );
 
@@ -216,11 +223,8 @@ export async function runIsolated(
     const result = await deps.runJob(jobId, { ...spec, projectDir: join(wtInfo.path, relProjectDir) });
     let committed = false;
     if (result.status === 'done') {
-      committed = await deps.wt.squashCommit(
-        join(wtInfo.path, relProjectDir),
-        spec.targetPaths ?? [],
-        `feat(${jobId}): inner-loop 交付`,
-      );
+      // squash 动态据 git status 捕获实际改动(不再传 targetPaths——agent 写在哪/什么名都正确捕获)
+      committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), `feat(${jobId}): inner-loop 交付`);
     }
     return { result, branch: committed ? wtInfo.branch : undefined, committed };
   } finally {
@@ -316,4 +320,36 @@ export async function runInnerLoopJobIsolated(jobId: string, spec: InnerLoopJobS
   const cmd = makeCmdRunner();
   const wt = makeWorktreeManager(cmd, { repoRoot, runtimeDir });
   return runIsolated(jobId, spec, { wt, runJob: runInnerLoopJob, repoRoot });
+}
+
+export interface RealBatchOpts {
+  concurrency?: number;
+  baseRef?: string;
+  /** 命令执行器(默认真 spawn);注入便于测 gate/集成装配,不触真 IO。 */
+  cmd?: CmdRunner;
+}
+
+/**
+ * 真实 BatchDrainDeps 装配(daemon「接全」核心):把已验证单元组合成全链一份依赖——
+ * runOne=隔离 worktree 跑内循环、batchIntegrate=跨批累积集成、integrationGate=各项目 green、
+ * linkDeps=软链依赖、onHandoff=HITL 交接报告。构造期不做 IO(manager/gates 惰性),可单测接线。
+ */
+export function makeRealBatchDeps(opts: RealBatchOpts = {}): BatchDrainDeps {
+  const pipeline = pipelineDir();
+  const repoRoot = join(pipeline, '..');
+  const runtimeRoot = join(pipeline, '.runtime');
+  const runtimeDir = join(runtimeRoot, 'worktrees');
+  const cmd = opts.cmd ?? makeCmdRunner();
+  const wt = makeWorktreeManager(cmd, { repoRoot, runtimeDir });
+  return {
+    runOne: runInnerLoopJobIsolated,
+    batchIntegrate: wt.batchIntegrate,
+    integrationGate: (projectDir) => makeGates(cmd, { cwd: projectDir }).green(),
+    linkDeps: wt.linkDeps,
+    repoRoot,
+    runtimeDir,
+    onHandoff: makeDefaultHandoff(runtimeRoot),
+    concurrency: opts.concurrency,
+    baseRef: opts.baseRef,
+  };
 }

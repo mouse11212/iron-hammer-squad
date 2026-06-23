@@ -72,6 +72,30 @@ export function mutateTargetsFromStatus(porcelain: string, prefix = ''): string[
   return [...out];
 }
 
+/**
+ * 纯解析 `git status --porcelain` → 本工程内**全部**改动路径(工程相对),供动态 squash add。
+ * 与 mutateTargetsFromStatus 的关键区别:不限扩展名/目录(src + test + 配置都要),且**包含删除**
+ * (squash 须提交删除)。porcelain 默认不列 .gitignore 忽略项(变异沙箱/依赖),故 add 天然安全——
+ * 不再要求调用者预先精确声明 targetPaths(预测错会静默丢弃 done 的成果,真 e2e 揪出的缺口)。
+ * prefix(`git rev-parse --show-prefix`)把仓库根相对路径剥成工程相对,工程外改动排除。
+ */
+export function changedPathsFromStatus(porcelain: string, prefix = ''): string[] {
+  const out = new Set<string>();
+  for (const raw of porcelain.split('\n')) {
+    if (!raw.trim()) continue;
+    let path = raw.slice(3).trim();
+    const arrow = path.indexOf(' -> ');
+    if (arrow !== -1) path = path.slice(arrow + 4).trim(); // 重命名取新路径
+    path = path.replace(/^"(.*)"$/, '$1'); // porcelain 对含空格路径加引号
+    if (prefix) {
+      if (!path.startsWith(prefix)) continue; // 工程外改动,忽略
+      path = path.slice(prefix.length); // 仓库根相对 → 工程相对
+    }
+    out.add(path);
+  }
+  return [...out];
+}
+
 /** 据注入的命令执行器构建 red/green/mutation 三个 gate。 */
 export function makeGates(run: CmdRunner, opts: GateOptions): {
   red: () => Promise<GateResult>;

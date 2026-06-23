@@ -32,8 +32,11 @@ export type InvokeFn = (prompt: string) => Promise<InvokeResult>;
 
 // ───────── inner-loop 编排(M5/PEV)类型 ─────────
 
-/** must-fix 归属域：实现 bug → 开发角色；测试缺口 → 测试角色。 */
-export type FixDomain = 'impl' | 'test';
+/** must-fix 归属域：实现 bug → 开发角色；测试缺口 → 测试角色；编排层职责 → orchestrator 确定性代修。 */
+export type FixDomain = 'impl' | 'test' | 'orchestrator';
+
+/** orchestrator 代修指令(确定性、白名单驱动,防逃逸阀)。首类:登记新纯逻辑文件进产品 stryker.conf。 */
+export type OrchestratorAction = { type: 'register-mutation-target'; file: string };
 
 /** 评审产出的单条 must-fix(结构化，driver 据此确定性路由)。 */
 export interface MustFix {
@@ -41,6 +44,8 @@ export interface MustFix {
   desc: string;
   /** 可选定位文件。 */
   file?: string;
+  /** orchestrator 域专用:结构化代修指令(白名单);test/dev agent 无权处理的编排层修复。 */
+  action?: OrchestratorAction;
 }
 
 /** 评审裁决类型。 */

@@ -1,7 +1,16 @@
+import { pathToFileURL } from 'node:url';
 import type { InvokeFn } from './types.js';
 import { openQueue, type Queue } from './queue-sqlite.js';
 import { makeClaudeInvoke } from './invoke.js';
-import { runInnerLoopJob, runInnerLoopJobIsolated, type InnerLoopJobSpec } from './inner-loop-runner.js';
+import {
+  runInnerLoopJob,
+  runInnerLoopJobIsolated,
+  drainBatchIsolated,
+  makeRealBatchDeps,
+  type InnerLoopJobSpec,
+  type BatchDrainDeps,
+  type BatchDrainResult,
+} from './inner-loop-runner.js';
 import type { InnerLoopResult } from './inner-loop.js';
 
 // 并行多消费者驱动(M5-A/D9):取代 M3 单消费者文件队列 drain。
@@ -105,22 +114,63 @@ export async function driveParallelLoop(opts: DriveLoopOpts): Promise<{ rounds: 
   return { rounds, totalHandled };
 }
 
-// 直接运行:node drive-parallel.js <dbPath> [concurrency]；IH_ISOLATION=1 → 每个 inner-loop 走 worktree 隔离(M5-B)
-// IH_DAEMON=1 → 轮询守护(②):持续 drain 至连续空轮上限
-if (import.meta.url === `file://${process.argv[1]}`) {
+/** 守护单轮:开队列→recover→批隔离 drain(隔离跑+批后集成+HITL 交接)→close。注入 open/drain 可测。 */
+export interface BatchRoundDeps {
+  /** 每轮装配真实 BatchDrainDeps(默认 makeRealBatchDeps)。 */
+  buildDeps: () => BatchDrainDeps;
+  openQueueFn?: (dbPath: string) => Queue;
+  drainBatch?: (q: Queue, deps: BatchDrainDeps) => Promise<BatchDrainResult>;
+}
+
+/**
+ * 组装"全链单轮"为 driveParallelLoop 的 drainRound:每轮开队列→recover→drainBatchIsolated→close,
+ * 返回本轮处理数。finally 保证异常也关闭连接(守护多轮不复用/不泄漏)。
+ */
+export function makeBatchDrainRound(dbPath: string, deps: BatchRoundDeps): () => Promise<number> {
+  const openQ = deps.openQueueFn ?? openQueue;
+  const drain = deps.drainBatch ?? drainBatchIsolated;
+  return async () => {
+    const q = openQ(dbPath);
+    try {
+      q.recover();
+      const r = await drain(q, deps.buildDeps());
+      return r.handled;
+    } finally {
+      q.close();
+    }
+  };
+}
+
+/**
+ * CLI 入口判定:本模块是否被直接运行(而非 import)。
+ * 不能用 `import.meta.url === \`file://\` + process.argv[1]`——含中文/空格的路径下
+ * import.meta.url 是 URL 编码的(%E9...),argv1 是未编码原始路径,朴素拼接永不相等
+ * → main 块整段不执行(daemon 静默不启动)。用 pathToFileURL 归一化两侧编码后比较。
+ */
+export function isMainModule(metaUrl: string, argv1: string | undefined): boolean {
+  if (!argv1) return false;
+  return pathToFileURL(argv1).href === metaUrl;
+}
+
+// 直接运行:node drive-parallel.js <dbPath> [concurrency]
+//   IH_ISOLATION=1            → 单批全链(隔离 worktree 跑内循环 → batchIntegrate → HITL 交接报告)
+//   IH_DAEMON=1               → 常驻守护:轮询全链单轮,连续空轮上限即停(隐含隔离+集成+交接)
+//   (默认,无 flag)           → legacy 非隔离单次 drain(per-job,无集成,廉价回归用)
+if (isMainModule(import.meta.url, process.argv[1])) {
   const dbPath = process.argv[2] ?? new URL('../../.runtime/queue.db', import.meta.url).pathname;
   const concurrency = Number(process.argv[3] ?? 2);
-  const runInner = process.env.IH_ISOLATION ? defaultRunInnerIsolated : defaultRunInner;
   const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
   if (process.env.IH_DAEMON) {
-    void driveParallelLoop({
-      drainRound: () => driveParallelOnce(dbPath, makeClaudeInvoke(), concurrency, runInner),
-      sleep,
-      pollMs: Number(process.env.IH_POLL_MS ?? 2000),
-    }).then((r) => console.log(`[driver] 守护退出:${r.rounds} 轮,共 ${r.totalHandled} 条`));
+    const round = makeBatchDrainRound(dbPath, { buildDeps: () => makeRealBatchDeps({ concurrency }) });
+    void driveParallelLoop({ drainRound: round, sleep, pollMs: Number(process.env.IH_POLL_MS ?? 2000) }).then((r) =>
+      console.log(`[driver] 守护退出:${r.rounds} 轮,共 ${r.totalHandled} 条(全链:隔离→集成→交接)`),
+    );
+  } else if (process.env.IH_ISOLATION) {
+    const round = makeBatchDrainRound(dbPath, { buildDeps: () => makeRealBatchDeps({ concurrency }) });
+    void round().then((n) => console.log(`[driver] 单批全链完成,共 ${n} 条(隔离→集成→交接,报告见 .runtime/integration-report.md)`));
   } else {
-    void driveParallelOnce(dbPath, makeClaudeInvoke(), concurrency, runInner).then((n) =>
-      console.log(`[driver] 并行处理完成,共 ${n} 条${process.env.IH_ISOLATION ? '(worktree 隔离)' : ''}`),
+    void driveParallelOnce(dbPath, makeClaudeInvoke(), concurrency, defaultRunInner).then((n) =>
+      console.log(`[driver] 并行处理完成,共 ${n} 条`),
     );
   }
 }

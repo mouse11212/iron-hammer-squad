@@ -37,7 +37,7 @@ describe('runIsolated（隔离只产 feature 分支,不集成）', () => {
     expect(d.wt.create).toHaveBeenCalledWith('j1', expect.any(String));
     expect(d.wt.linkDeps).toHaveBeenCalledWith('/wt/j1', 'iron-hammer-output/fincards');
     expect(d.runJob).toHaveBeenCalledWith('j1', expect.objectContaining({ projectDir: '/wt/j1/iron-hammer-output/fincards' }));
-    expect(d.wt.squashCommit).toHaveBeenCalledWith('/wt/j1/iron-hammer-output/fincards', spec.targetPaths, expect.any(String));
+    expect(d.wt.squashCommit).toHaveBeenCalledWith('/wt/j1/iron-hammer-output/fincards', expect.any(String));
     expect(r.committed).toBe(true);
     expect(r.branch).toBe('agent/j1');
     expect(d.wt.integrate).not.toHaveBeenCalled(); // 集成移到批后

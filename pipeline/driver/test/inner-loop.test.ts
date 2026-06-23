@@ -7,7 +7,7 @@ import type {
   PhaseOutput,
   GateResult,
 } from '../src/inner-loop.js';
-import type { Verdict } from '../src/types.js';
+import type { Verdict, MustFix } from '../src/types.js';
 
 const ok: GateResult = { ok: true };
 const job: InnerLoopJob = { id: 'us1' };
@@ -252,5 +252,77 @@ describe('runInnerLoop（纯编排状态机，注入全部 deps）', () => {
     const r = await runInnerLoop({ id: 'us1', maxFixRounds: 3 }, makeDeps({ runPhase, readVerdict: verdict }));
     expect(r.status).toBe('done');
     expect(r.sessions.dev).toBe('sd-new'); // 回退后新 session 被捕获并用于下一轮
+  });
+
+  describe('orchestrator 代修(编排层确定性修复,非 agent)', () => {
+    const orchFix = (file: string): Verdict => ({
+      decision: 'conditional',
+      mustFix: [{ domain: 'orchestrator', desc: '登记 stryker.conf', action: { type: 'register-mutation-target', file } }],
+    });
+
+    it('review 提 orchestrator must-fix → orchestratorFix 代修成功 → 继续 → done', async () => {
+      const orchestratorFix = vi.fn(async (fixes: MustFix[]) => {
+        void fixes; // 参数仅为 mock.calls 类型推断,运行时不消费
+        return ok;
+      });
+      const deps = makeDeps({
+        readVerdict: seq<Verdict>([orchFix('src/x.ts'), { decision: 'pass', mustFix: [] }]),
+        orchestratorFix,
+      });
+      const r = await runInnerLoop(job, deps);
+      expect(r.status).toBe('done');
+      expect(r.fixRounds).toBe(1);
+      expect(orchestratorFix).toHaveBeenCalledTimes(1);
+      expect(orchestratorFix.mock.calls[0]![0]).toEqual([
+        { domain: 'orchestrator', desc: '登记 stryker.conf', action: { type: 'register-mutation-target', file: 'src/x.ts' } },
+      ]);
+    });
+
+    it('orchestratorFix 代修失败(不识别/出错)→ blocked-escalated,residual 保留', async () => {
+      const deps = makeDeps({
+        readVerdict: async () => orchFix('src/x.ts'),
+        orchestratorFix: async () => ({ ok: false, summary: '不识别的代修指令' }),
+      });
+      const r = await runInnerLoop(job, deps);
+      expect(r.status).toBe('blocked-escalated');
+      expect(r.reason).toMatch(/orchestrator/);
+      expect(r.residual?.[0]?.domain).toBe('orchestrator');
+    });
+
+    it('遇 orchestrator must-fix 但未注入 orchestratorFix 能力 → escalated(向后兼容,不静默吞)', async () => {
+      const deps = makeDeps({ readVerdict: async () => orchFix('src/x.ts') }); // 不注入 orchestratorFix
+      const r = await runInnerLoop(job, deps);
+      expect(r.status).toBe('blocked-escalated');
+      expect(r.residual?.[0]?.domain).toBe('orchestrator');
+    });
+
+    it('orchestrator + test 混合域:代修与 agent 回修同轮,均成功 → done', async () => {
+      const orchestratorFix = vi.fn(async (fixes: MustFix[]) => {
+        void fixes; // 参数仅为 mock.calls 类型推断,运行时不消费
+        return ok;
+      });
+      const runPhase = phaseByRole({ test: 'st', dev: 'sd', review: 'sr' });
+      const deps = makeDeps({
+        runPhase,
+        readVerdict: seq<Verdict>([
+          {
+            decision: 'conditional',
+            mustFix: [
+              { domain: 'orchestrator', desc: '登记', action: { type: 'register-mutation-target', file: 'src/x.ts' } },
+              { domain: 'test', desc: '补测试' },
+            ],
+          },
+          { decision: 'pass', mustFix: [] },
+        ]),
+        orchestratorFix,
+      });
+      const r = await runInnerLoop(job, deps);
+      expect(r.status).toBe('done');
+      expect(orchestratorFix).toHaveBeenCalledTimes(1);
+      const testResumed = (runPhase as ReturnType<typeof vi.fn>).mock.calls.some(
+        (c) => (c[0] as PhaseInput).role === 'test' && (c[0] as PhaseInput).resumeSessionId === 'st',
+      );
+      expect(testResumed).toBe(true);
+    });
   });
 });

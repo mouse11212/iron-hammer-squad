@@ -46,7 +46,11 @@ export function buildPhasePrompt(input: BuildPromptInput): string {
     parts.push(
       '# 产出要求',
       `完成评审后,把结构化裁决写入 verdict JSON 文件: ${context.verdictPath}\n` +
-        'schema: {decision: pass|conditional|block, mustFix: [{domain: impl|test, desc, file?}], niceToHave?}',
+        'schema: {decision: pass|conditional|block, mustFix: [{domain: impl|test|orchestrator, desc, file?, action?}], niceToHave?}\n' +
+        '域路由: impl→开发回修; test→测试回修; orchestrator→编排层确定性代修(test/dev 无权的配置类修复)。\n' +
+        '若某修复属编排层职责、不在 test/dev 授权边界——典型:本切片【新建】的纯逻辑文件需登记进产品 stryker.conf 的 mutate 列表\n' +
+        '(否则交付后该文件失去持续变异覆盖)——标 domain=orchestrator 并给 action:{type:"register-mutation-target", file:"src/xxx.ts"}。\n' +
+        '当前仅支持此一种 action;其它编排层诉求只写 desc(将升级人类,不要塞给 test/dev)。',
     );
   }
   if (mustFix?.length) {

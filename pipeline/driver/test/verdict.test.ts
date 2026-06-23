@@ -52,10 +52,39 @@ describe('parseVerdict（纯解析 + schema 校验，确定性交接点）', () 
     ).toThrow(/domain/);
   });
 
-  it('mustFix 项 domain 非 impl/test → 抛错', () => {
+  it('mustFix 项 domain 非 impl/test/orchestrator → 抛错', () => {
     expect(() =>
       parseVerdict(JSON.stringify({ decision: 'block', mustFix: [{ domain: 'review', desc: 'x' }] })),
     ).toThrow(/domain/);
+  });
+
+  it('解析 orchestrator 域 + register-mutation-target action', () => {
+    const v = parseVerdict(
+      JSON.stringify({
+        decision: 'conditional',
+        mustFix: [
+          { domain: 'orchestrator', desc: '登记 stryker.conf', action: { type: 'register-mutation-target', file: 'src/x.ts' } },
+        ],
+      }),
+    );
+    expect(v.mustFix[0]).toEqual({
+      domain: 'orchestrator',
+      desc: '登记 stryker.conf',
+      action: { type: 'register-mutation-target', file: 'src/x.ts' },
+    });
+  });
+
+  it('orchestrator 域无 action → action 省略(留给 orchestratorFix 判不识别→escalated,不静默吞)', () => {
+    const v = parseVerdict(JSON.stringify({ decision: 'conditional', mustFix: [{ domain: 'orchestrator', desc: '没给 action' }] }));
+    expect(v.mustFix[0]).toEqual({ domain: 'orchestrator', desc: '没给 action' });
+    expect(v.mustFix[0]!.action).toBeUndefined();
+  });
+
+  it('action.type 不在白名单(或 file 非字符串)→ action 省略(防逃逸阀)', () => {
+    const v = parseVerdict(
+      JSON.stringify({ decision: 'conditional', mustFix: [{ domain: 'orchestrator', desc: 'x', action: { type: 'rm-rf', file: 'y' } }] }),
+    );
+    expect(v.mustFix[0]!.action).toBeUndefined();
   });
 
   it('conditional 裁决被接受', () => {
