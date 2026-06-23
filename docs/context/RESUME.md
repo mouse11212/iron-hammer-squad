@@ -44,7 +44,7 @@
 - ✅ **任务2真 e2e 翻盘完成**:formatCompactNumber(曾 escalated)→ review 标 orchestrator 域 register-mutation-target → 代修登记 stryker.conf → 次轮 review 确认(变异100%)→ **done**;integration 含 src+test+stryker.conf 登记三者,main 不变。**揪出并修 node_modules symlink 缺口**:linkDeps 软链因 root `.gitignore` `**/node_modules/` 带尾斜杠只匹配目录而漏网,被动态 squash 误捕获(合 main 会污染不可移植软链)→ `changedPathsFromStatus` 排除,2 测试固化。
 - ✅ **OpenSpec 规约已补**:归档 `2026-06-23-pipeline-dynamic-squash-orchestrator-fix`(worktree-integration squash 动态化+排除软链;inner-loop-orchestration 新增 orchestrator 域确定性代修)。
 - ✅ **红线/军规分层厘清**:CLAUDE.md 核心禁止事项加体系说明(7 红线=原则层、8 军规=Git执行层,**独立编号、引用带"红线N"/"军规N"前缀、抵触以红线为准**);V4 §9 反向引用。纠正曾把红线4/6 误称军规4/6。
-- 待办:外部通知渠道;report 历史归档;comprehension debt 待合阈值告警;M6+。
+- 待办:**M4+ 可观测闭环**(统一日志 schema + traceId 贯穿 + 追溯链自动织链 + Verification Tax 埋点 + 全链路可回放;见 backlog「明确待办 · M4+」,对应 V4 §7:204);外部通知渠道;report 历史归档;comprehension debt 待合阈值告警;M6+。
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 

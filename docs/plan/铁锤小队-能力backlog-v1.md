@@ -13,10 +13,33 @@
 | **M2** | 多角色编排 | M1 | §3.1、§4.2 | Claude Code subagents 跑通 Planner-Workers-Judge：测试 Agent≠开发 Agent，评审两遍 |
 | **M3** | 事件触发 + 状态外置 | M2 | §3（D4）、§3.1 | 本地事件（规约 delta/测试转绿/合并完成）经胶水 `claude -p` 拉起对应循环；状态/检查点外置，崩溃可恢复 |
 | **M4** | 追溯链 + 看板 + 指标采集 | M3 | §4.4、§7 | 双向追溯链带 ID 可回放；PM 看板；采集 harness 四指标（含 Verification Tax）原始数据 |
+| **M4+** | 可观测闭环（统一日志 + 追溯链自动化） | M4 | §7、§4.4、§3.1 | 每操作一条带 traceId 的结构化事件（统一 schema）；追溯链自动织链（changeId→spec→tests→commit，取代手维护 traces.json）；Verification Tax 按 change 埋点；据 traceId 全链路可回放 |
 | **M5** | 并行内循环 + 消息组件 | M4 | §3.1（D9）、§9 | 第三方消息组件(MCP)支持 2 个并行内循环；worktree 隔离 + 集成分支兜底 + squash |
 | **M6** | NFR 门 + 安全门 | M4 | §8、§4.7、§9军规7 | NFR 派生测试入门禁；OWASP/STRIDE + CodeQL/Dependabot 前置；敏感改动加严审批 |
 | **M7** | drift 监控 | M3 | §6 | ASI 类 sensor（语义相似度/共识率/工具序列一致性）滚动窗口告警；两级拓扑；EMC/ABA |
 | **M8** | 自演进回灌（Steering Loop 自动化） | M4、M7 | §2、§5 | 失败 → 自动产出对 rules/gate 的 diff 建议，**经人类门禁**后固化；带独立回归 sensor 兜底 |
+
+> **M4+ 是横切关注点**，可随其它里程碑增量推进，非阻塞主线；展开见下「明确待办」。
+
+## 明确待办 · M4+ 可观测闭环（2026-06-23 立项）
+
+**动机**：V4 §7:204 要求"**所有操作记结构化日志，挂追溯链 ID，全链路可回放**"。M4 已搭骨架（四指标纯计算 + 看板 + 追溯链双向查询 + inner-loop 的 per-phase/gates/state 埋点），但 §7 目标**尚未自动闭合**——日志分散、追溯链手维护、Verification Tax 未埋点。
+
+**当前缺口**（M4 复盘 + 代码核查，可溯源）：
+- **无统一日志 schema**：现为 `${role}-${attempt}.jsonl` / `gates.jsonl` / `state.json` 各自为政，无统一"操作事件"格式与 traceId 贯穿（`pipeline/driver/src/inner-loop-runner.ts`）。
+- **追溯链未自动化**：`pipeline/metrics/data/traces.json` 手维护，未从 OpenSpec change / git / runs 自动织链（`M4-E4-retro.md:9`）。
+- **Verification Tax 待埋点**：实现/验证耗时未按 change 记录 → 指标报"待埋点"（`M4-E4-retro.md:11`）。
+- **Defect Escape 手维护**：`defects.json` 未由 CI / bug 看板自动喂。
+
+**范围**：
+1. **统一日志 schema**：每个操作（phase / gate / squash / integrate / orchestrator-fix / queue claim-ack 等）落一条带 `traceId`（贯穿一个 US 全链）+ `op` + `ts` + 结构化 payload 的事件；沿用 IO/逻辑分离的薄边界确定性写入。
+2. **追溯链自动织链**：changeId→spec→tests→commit 从 OpenSpec change / git numstat / runs state.json 自动采集，取代手维护 traces.json。
+3. **Verification Tax 埋点**：按 change 记实现耗时 vs 验证（gate/review）耗时。
+4. **全链路可回放**：据 traceId 串起一个 US 的所有事件，可回放。
+
+**DoD**：任取一个已完成 US，凭其 `traceId` 能自动回放 规约→test→dev→review→gate→squash→integrate 的全部操作事件；四指标（含 Verification Tax）全部有真实值、无"待埋点"；追溯链零手维护。
+
+**纪律提醒**：横切、增量推进，从窄到宽（红线3）——先定 schema + traceId 贯穿一条链，再逐步把各操作接入，不一次上统一日志框架。
 
 ## 里程碑细节（仅 M0–M2，后续拿起时再展开）
 
