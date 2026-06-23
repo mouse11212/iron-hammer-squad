@@ -40,8 +40,11 @@
 - **真 e2e 四路径全实证**(fincards,真 claude):①failed(test 超时 5min)②blocked-escalated(formatCompactNumber 新文件未登记 stryker.conf,域边界拦截)③**done→动态squash→batchIntegrate merged→main 不变**(clampPercent NaN,success 实证)④handoff 三态。**对照实验**:未登记新文件→escalated vs 已登记文件→success,实证"交付沉淀(静态护栏)"必要性。
 - **双层变异门认知**(KB loop-engineering/痛点三):inner-loop 动态门=建造期脚手架(US内),产品静态 stryker.conf=交付后护栏;交付须把建造期覆盖的文件沉淀进静态护栏(orchestrator 代修做这件事)。
 - ⚠️ **求真纠正**:曾把"角色不混同(CLAUDE.md 红线4)/阻塞升级(红线6)"误称"军规4/6"(军规4=短命快合、军规6=规范命名,见 V4 §9)。两套编号:CLAUDE.md 7 红线 ≠ V4§9 8 军规。已修代码注释 2 处。
-- driver gate:lint/typecheck/**183 测试**/变异门 **91.10%**(新增 orchestrator-fix.ts 入 mutate)。
-- 待补:任务2 真 e2e(formatCompactNumber 翻盘 escalated→done,单测已覆盖,用户选跳过e2e直接收尾);OpenSpec worktree-integration 规约更新(动态squash + orchestrator代修);外部通知渠道;report 历史归档;M6+。
+- driver gate:lint/typecheck/**185 测试**/变异门 **91.16%**(orchestrator-fix.ts + changedPathsFromStatus 排除软链入 mutate)。
+- ✅ **任务2真 e2e 翻盘完成**:formatCompactNumber(曾 escalated)→ review 标 orchestrator 域 register-mutation-target → 代修登记 stryker.conf → 次轮 review 确认(变异100%)→ **done**;integration 含 src+test+stryker.conf 登记三者,main 不变。**揪出并修 node_modules symlink 缺口**:linkDeps 软链因 root `.gitignore` `**/node_modules/` 带尾斜杠只匹配目录而漏网,被动态 squash 误捕获(合 main 会污染不可移植软链)→ `changedPathsFromStatus` 排除,2 测试固化。
+- ✅ **OpenSpec 规约已补**:归档 `2026-06-23-pipeline-dynamic-squash-orchestrator-fix`(worktree-integration squash 动态化+排除软链;inner-loop-orchestration 新增 orchestrator 域确定性代修)。
+- ✅ **红线/军规分层厘清**:CLAUDE.md 核心禁止事项加体系说明(7 红线=原则层、8 军规=Git执行层,**独立编号、引用带"红线N"/"军规N"前缀、抵触以红线为准**);V4 §9 反向引用。纠正曾把红线4/6 误称军规4/6。
+- 待办:外部通知渠道;report 历史归档;comprehension debt 待合阈值告警;M6+。
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 

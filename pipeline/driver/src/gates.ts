@@ -91,6 +91,10 @@ export function changedPathsFromStatus(porcelain: string, prefix = ''): string[]
       if (!path.startsWith(prefix)) continue; // 工程外改动,忽略
       path = path.slice(prefix.length); // 仓库根相对 → 工程相对
     }
+    // 排除依赖软链:linkDeps 用 `ln -sfn` 创建的 node_modules 是 symlink(非目录),
+    // root .gitignore `**/node_modules/` 带尾斜杠只匹配目录 → 漏网被 porcelain 列出。
+    // 它非切片产物,squash 捕获它会污染交付物(指向本机绝对路径的不可移植 symlink)。
+    if (/(^|\/)node_modules(\/|$)/.test(path)) continue;
     out.add(path);
   }
   return [...out];
