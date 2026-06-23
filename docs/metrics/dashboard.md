@@ -1,14 +1,14 @@
 # 铁锤小队 · Harness 看板
 
-> 生成于 2026-06-22T03:33:09.083Z · 四指标基线无标准值，需产线标定(V4 §7)
+> 生成于 2026-06-23T08:39:39.061Z · 四指标基线无标准值，需产线标定(V4 §7)
 
 ## harness 四指标
 
 | 指标 | 值 | 说明 |
 |---|---|---|
-| Task Resolution Rate | 100.0% | 已解决 8 / 尝试 8 |
-| Code Churn | +31730 / -6815（302 文件） | diff 代理 |
-| Verification Tax | 待埋点(实现耗时未采集) | 验证耗时 —ms |
+| Task Resolution Rate | 94.4% | 已解决 17 / 尝试 18 |
+| Code Churn | +35688 / -7028（444 文件） | diff 代理 |
+| Verification Tax | 待埋点(实现耗时未采集) | 验证 —ms / 实现 —ms |
 | Defect Escape Rate | 0.0% | 逃逸 0 / 总 3 |
 
 ## 追溯链（change → spec → tests → commit）

@@ -1,33 +1,4 @@
-# harness-metrics Specification
-
-## Purpose
-TBD - created by archiving change pipeline-m4-metrics-trace. Update Purpose after archive.
-## Requirements
-### Requirement: 计算 harness 四指标(纯函数)
-系统 SHALL 提供纯函数，从结构化输入计算 harness 四指标:Task Resolution Rate、Code Churn、Verification Tax、Defect Escape Rate。无副作用，便于确定性测试。
-
-#### Scenario: Task Resolution Rate
-- **WHEN** 已解决 N 个、尝试 M 个单元
-- **THEN** 返回 N/M（M=0 时返回 0，不除零报错）
-
-#### Scenario: Code Churn 汇总
-- **WHEN** 传入 numstat 列表（每项 added/removed）
-- **THEN** 返回 added、removed、total(=added+removed)、files 计数
-
-#### Scenario: Verification Tax 实现耗时缺失
-- **WHEN** 实现耗时为 null(未埋点)
-- **THEN** 返回 null(标注待埋点)，不臆造比率
-
-#### Scenario: Defect Escape Rate 无缺陷
-- **WHEN** 总缺陷为 0
-- **THEN** 返回 0，不除零报错
-
-### Requirement: 渲染看板(纯函数)
-系统 SHALL 提供纯函数，把指标快照 + 追溯链渲染为 markdown 看板字符串。无 IO。
-
-#### Scenario: 渲染含指标与追溯链
-- **WHEN** 传入快照(四指标 + TraceLink 列表)
-- **THEN** 输出含四指标表与追溯链表的合法 markdown；缺口指标显示"待埋点/待标定"而非伪造数值
+## ADDED Requirements
 
 ### Requirement: 从事件流派生 Verification Tax 输入
 系统 SHALL 提供纯函数,从统一事件流(events.jsonl)按固定口径归类累加 `durationMs`,得出实现耗时与验证耗时,供 `verificationTax` 计算:**实现** = `op=phase 且 phase=dev`(含回修轮);**验证** = `op=phase 且 phase∈{test,review}` 加 `op=gate` 加 `op=orchestrator-fix`;`op∈{squash,integrate}` 不计入(无 durationMs)。缺 `durationMs` 的事件跳过。
@@ -54,4 +25,3 @@ TBD - created by archiving change pipeline-m4-metrics-trace. Update Purpose afte
 #### Scenario: 无 events → 回落 null
 - **WHEN** events.jsonl 不存在或无 dev 实现事件
 - **THEN** 快照 verificationTax 为 null,看板显示"待埋点"而非伪造数值
-

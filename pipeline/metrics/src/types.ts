@@ -47,6 +47,14 @@ export interface InnerLoopStats {
   avgCostUsd: number | null;
 }
 
+/** Verification Tax 按 US(traceId) 的明细。 */
+export interface TraceTax {
+  traceId: string;
+  implementationMs: number;
+  verificationMs: number;
+  tax: number | null;
+}
+
 /** harness 四指标快照(V4 §7)。null = 待埋点/待标定，不臆造。 */
 export interface MetricsSnapshot {
   generatedAt: string;
@@ -54,11 +62,14 @@ export interface MetricsSnapshot {
   resolved: number;
   attempted: number;
   codeChurn: ChurnResult;
-  verificationTax: number | null; // 验证耗时/(验证+实现);实现耗时待埋点→null
+  verificationTax: number | null; // 验证耗时/(验证+实现);无实现事件→null
   verificationMs: number | null;
+  implementationMs: number | null; // 实现耗时(dev phase);无 events→null
   defectEscapeRate: number; // 逃逸/总
   defects: { total: number; escaped: number };
   traces: TraceLink[];
+  /** Verification Tax 按 US 明细(从 events.jsonl 派生;无 events 时空数组,看板省略该区)。 */
+  taxByTrace: TraceTax[];
   /** inner-loop 自主运行聚合(无 run 时 undefined,看板省略该区)。 */
   innerLoop?: InnerLoopStats;
 }

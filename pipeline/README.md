@@ -44,9 +44,10 @@ pipeline/
 
 ```bash
 cd pipeline/metrics && npm install && npm run report -- <repoRoot>
-# 采集 git churn + OpenSpec 归档计数 + traces/defects → 生成 <repoRoot>/docs/metrics/dashboard.md
+# 采集 git churn + OpenSpec 归档计数 + traces/defects + events.jsonl(Verification Tax) → 生成 <repoRoot>/docs/metrics/dashboard.md
 ```
 四指标:Task Resolution Rate / Code Churn / Verification Tax / Defect Escape Rate。**无标准基线,需产线标定(V4 §7)**;未埋点项显示"待埋点"不伪造。
+**Verification Tax 已真值化(M4+ 续切片)**:从统一事件日志 `<pipeline>/.runtime/events.jsonl` 的 `durationMs` 派生——实现=dev phase,验证=test/review phase + gate + orchestrator-fix(`events-tax.ts`);看板出聚合 + 按 US(traceId) 明细。无 events 时优雅回落"待埋点"(events.jsonl 为 ephemeral,反映当前运行时的 runs)。**未做**:追溯链自动织链、Defect Escape 自动喂、持久化指标存储。
 
 ## driver/ 用法（① Loop 引擎）
 

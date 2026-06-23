@@ -16,9 +16,11 @@ const snap: MetricsSnapshot = {
   codeChurn: { added: 100, removed: 10, total: 110, files: 12 },
   verificationTax: null,
   verificationMs: 1700,
+  implementationMs: null,
   defectEscapeRate: 0,
   defects: { total: 3, escaped: 0 },
   traces,
+  taxByTrace: [],
 };
 
 describe('看板渲染(纯函数)', () => {
@@ -38,6 +40,22 @@ describe('看板渲染(纯函数)', () => {
   });
   it('无 inner-loop 数据时不渲染该区块', () => {
     expect(renderBoard(snap)).not.toContain('inner-loop');
+  });
+  it('无 taxByTrace 数据时不渲染「按 US」区块', () => {
+    expect(renderBoard(snap)).not.toContain('按 US');
+  });
+  it('有 Verification Tax 真值时显示实现/验证 ms 与 per-US 明细', () => {
+    const md = renderBoard({
+      ...snap,
+      verificationTax: 0.75,
+      verificationMs: 300,
+      implementationMs: 100,
+      taxByTrace: [{ traceId: 'job-1', implementationMs: 100, verificationMs: 300, tax: 0.75 }],
+    });
+    expect(md).toMatch(/Verification Tax.*75\.0%/);
+    expect(md).toContain('验证 300ms / 实现 100ms');
+    expect(md).toContain('按 US');
+    expect(md).toContain('job-1');
   });
   it('有 inner-loop 数据时渲染 KPI(运行数/状态/升级率/回修分布/成本)', () => {
     const md = renderBoard({

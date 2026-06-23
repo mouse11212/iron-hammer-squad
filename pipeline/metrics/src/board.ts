@@ -18,7 +18,7 @@ export function renderBoard(s: MetricsSnapshot): string {
     '|---|---|---|',
     `| Task Resolution Rate | ${pct(s.taskResolutionRate)} | 已解决 ${s.resolved} / 尝试 ${s.attempted} |`,
     `| Code Churn | +${s.codeChurn.added} / -${s.codeChurn.removed}（${s.codeChurn.files} 文件） | diff 代理 |`,
-    `| Verification Tax | ${vt} | 验证耗时 ${s.verificationMs ?? '—'}ms |`,
+    `| Verification Tax | ${vt} | 验证 ${s.verificationMs ?? '—'}ms / 实现 ${s.implementationMs ?? '—'}ms |`,
     `| Defect Escape Rate | ${pct(s.defectEscapeRate)} | 逃逸 ${s.defects.escaped} / 总 ${s.defects.total} |`,
     '',
     '## 追溯链（change → spec → tests → commit）',
@@ -28,6 +28,17 @@ export function renderBoard(s: MetricsSnapshot): string {
     ...s.traces.map((t) => `| ${t.changeId} | ${t.spec} | ${t.tests.join(', ')} | ${t.commit} |`),
     '',
   ];
+
+  if (s.taxByTrace.length > 0) {
+    lines.push(
+      '## Verification Tax 按 US（traceId）',
+      '',
+      '| traceId | 实现ms | 验证ms | tax |',
+      '|---|---|---|---|',
+      ...s.taxByTrace.map((t) => `| ${t.traceId} | ${t.implementationMs} | ${t.verificationMs} | ${t.tax === null ? '待埋点' : pct(t.tax)} |`),
+      '',
+    );
+  }
 
   if (s.innerLoop) {
     const il = s.innerLoop;
