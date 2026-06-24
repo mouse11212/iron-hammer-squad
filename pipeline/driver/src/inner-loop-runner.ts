@@ -17,6 +17,7 @@ import { aggregatePhaseMs } from './aggregate-phase-ms.js';
 import { readEvents } from './replay.js';
 import { runLedgerRecord, appendRunLedger } from './run-ledger.js';
 import { secretScanGate } from './secret-scan.js';
+import { classifySensitive } from './sensitive-change.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -278,6 +279,8 @@ export interface BatchDrainDeps {
   concurrency?: number;
   /** 批后集成完成后的 HITL 交接钩子(产出报告/通知);仅在本批有 job 时触发。 */
   onHandoff?: (integration: BatchIntegrateResult | null) => void;
+  /** M6-b 敏感改动审批(可选):返回 feature 触及的敏感类别;非空 → held(sensitive)路由人签。不传则不查(向后兼容)。 */
+  sensitiveCheck?: (branch: string) => Promise<string[]>;
   /** 统一事件 sink(可选):提供则每个 merged/held 分支发 integrate 事件(traceId 由分支名反推 jobId)。 */
   emit?: EventSink;
   /** 注入时钟(epoch ms);缺省真实 Date.now。 */
@@ -328,6 +331,7 @@ export async function drainBatchIsolated(q: Queue, deps: BatchDrainDeps): Promis
         await deps.linkDeps(intWorktree, rel);
         return deps.integrationGate(join(intWorktree, rel));
       },
+      deps.sensitiveCheck, // M6-b:命中敏感面 → held(sensitive)路由人签(不传=不查,向后兼容)
     );
   }
   if (integration && deps.emit) {
@@ -397,6 +401,13 @@ export function makeRealBatchDeps(opts: RealBatchOpts = {}): BatchDrainDeps {
     runtimeDir,
     onHandoff: makeDefaultHandoff(runtimeRoot),
     emit: makeEventSink(join(runtimeRoot, 'events.jsonl')), // 批后集成事件落统一日志
+    // M6-b 敏感改动审批:据 feature 改动路径分类,命中鉴权/CI/基础设施 → held(sensitive)路由人签。
+    sensitiveCheck: async (branch: string): Promise<string[]> => {
+      const base = opts.baseRef ?? 'HEAD';
+      const diff = await cmd('git', ['diff', '--name-only', `${base}...${branch}`], repoRoot);
+      const paths = diff.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+      return [...new Set(classifySensitive(paths).map((h) => h.category))];
+    },
     concurrency: opts.concurrency,
     baseRef: opts.baseRef,
   };

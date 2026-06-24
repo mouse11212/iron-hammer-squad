@@ -52,12 +52,13 @@
 | 子切片 | 内容 | 依赖/摩擦 | 序 |
 |---|---|---|---|
 | **M6-a 密钥扫描门** | 确定性扫改动 diff 找硬编码密钥(`ghp_`/AWS/PEM/通用赋值)→ green 红阻断;内联 `// allowlist-secret: 理由` 豁免 | harness-native、offline、失败驱动(真实 PAT 泄露) | **1 ✅ 已交付** |
-| M6-b 敏感改动加严审批 | 分类 diff 触及敏感面(鉴权/CI/依赖清单/基础设施)→ 升级人类签字(红线7/军规7/D1) | harness-native、需人签流程 | 2 |
+| **M6-b 敏感改动加严审批** | 分类 diff 触及敏感面(鉴权/CI/基础设施;**依赖清单不列**——机器可判)→ held(sensitive)路由人签(红线7/军规7/D1) | harness-native、复用 held/handoff | **2 ✅ 已交付** |
 | M6-c NFR 派生测试门 | 从 NFR/SLO 规约派生测试入门禁 | **需 NFR 上游**(§8 标"待完善 SLO 值") | 3 |
 | M6-d OWASP/STRIDE 安全 agent | 威胁建模 agent role(gstack /cso)合并前跑 | agent-driven、方法论 | 4 |
 | M6-e CodeQL/Dependabot | 供应链/静态安全扫描前置 | **需 CI/云**(与本地非云常驻 D9 张力) | 末/可选 |
 
 - **M6-a 已完成**(change `pipeline-secret-scan-gate`)：`driver/secret-scan.ts` 纯 `scanSecrets` + 薄 `secretScanGate`;向后兼容注入进 green 门(不注入零变化,真实装配启用);**不影响已实现功能**实证(fincards 全量零误报、既有 222 测试零改动通过)。详见 `docs/plan/M6-secret-scan-retro.md`。
+- **M6-b 已完成**(change `pipeline-sensitive-change-gate`)：`driver/sensitive-change.ts` 纯 `classifySensitive`(鉴权/CI/基础设施路径分类);`batchIntegrate` 可选注入敏感检查 → 命中 held(`reason:'sensitive'`+categories)路由人签,不自动合(复用 held/handoff,红线7/D1);**依赖清单不列敏感**(用户裁定)。向后兼容(不注入零变化),既有 232 测试零改动通过;真 git e2e:`.github/` 改动→held(sensitive,ci)、普通 src→merged、main 不动。详见 `M6-secret-scan-retro.md` 续记。
 
 **纪律提醒**：安全门同样从窄到宽——先 harness-native 确定性门(密钥/敏感面),CodeQL/Dependabot 等需 CI 的留末位;**命中=阻断,豁免须带理由(不弱化门)**。
 

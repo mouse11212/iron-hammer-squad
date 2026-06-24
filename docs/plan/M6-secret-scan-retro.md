@@ -37,7 +37,18 @@
 - **失败驱动（红线3）**：本门是被 RESUME §6 记录的**真实 PAT 泄露事件**拉出来的，不是凭空的安全洁癖。
 - **offline-first**：纯 TS 检测器，不引外部 secret-scanner/CodeQL（后者需 CI/云，与本地非云常驻 D9 张力大，排 M6 末位）。
 
+## 续:M6-b 敏感改动加严审批（change `pipeline-sensitive-change-gate`）
+
+把"质量门"从内容正确性扩到"谁有权批准":触及敏感面的合法改动 held 路由人签,不自动合。
+
+- **M6-a 与 M6-b 是两种本质不同的门**:M6-a(密钥)=**must-fix**(agent 自己拿掉,硬编码密钥不该存在);M6-b(敏感面)=**escalate-hold**(改动合法、必需,但触及鉴权/CI/基础设施 → 不能自动合,必须人签)。前者改"内容错了",后者改"谁批准"。正好对应红线7(人类门禁不可绕过)。
+- **复用 held/handoff,不新造路径**:batchIntegrate 已有 `held(reason:conflict|gate)` 通路;M6-b 只加 `reason:'sensitive'`+`categories`。敏感改动 squash 出分支(工作保留),held 不自动合,handoff 给人签提示——**绝不用 escalated**(那丢工作)。
+- **纯路径分类器**:`classifySensitive(paths)` 三类(auth/ci/infra),优先序 ci→infra→auth;依赖清单**不列**(用户裁定:机器可判无需人裁决)。穷尽单测。
+- **向后兼容注入**(同 M6-a/全仓一贯):batchIntegrate 可选 4 参 `sensitiveCheck`、BatchDrainDeps 可选 `sensitiveCheck`——不注入则行为照旧,既有 232 测试零改动通过。真实装配 drainBatchIsolated 注入(`git diff --name-only base...branch` → classifySensitive 去重类别)。
+- **真 git e2e**:一批 `.github/workflows/deploy.yml`(敏感 ci)+ `src/feature.ts`(普通)→ 前者 held(sensitive,[ci])、后者 merged、main 不动、handoff 渲染类别+"需人类签字后手动合"。driver gate 240 全绿。
+- **不影响已实现功能**:普通 src 交付照常合(fincards 风格不受影响),只有触及敏感面才 held。
+
 ## M6 后续候选
 
-- **M6-b 敏感改动加严审批**（升级人签，红线7/军规7/D1）→ M6-c NFR 派生测试门（需 NFR 上游）→ M6-d OWASP/STRIDE 安全 agent → M6-e CodeQL/Dependabot（需 CI）。
-- 零头：metrics 包级 stryker 变异门；secret-scan 漏报格式按真实失败追加（不追求一次全覆盖）。
+- **M6-c NFR 派生测试门**（需 NFR 上游,§8 标"待完善 SLO 值"）→ M6-d OWASP/STRIDE 安全 agent → M6-e CodeQL/Dependabot（需 CI）。
+- 零头：metrics 包级 stryker 变异门；secret-scan 漏报格式 / 敏感面类别按真实失败追加（红线3 从窄到宽，不追求一次全覆盖）；敏感面 override/allowlist。

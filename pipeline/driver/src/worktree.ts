@@ -31,7 +31,9 @@ export interface IntegrateResult {
 
 export interface BatchHeld {
   branch: string;
-  reason: 'conflict' | 'gate';
+  reason: 'conflict' | 'gate' | 'sensitive';
+  /** reason='sensitive' 时的命中类别(auth/ci/infra),供 handoff 提示人签。 */
+  categories?: string[];
 }
 
 export interface BatchIntegrateResult {
@@ -53,11 +55,13 @@ export interface WorktreeManager {
   /** 集成分支兜底:feature squash-merge 进 integration(独立 worktree,不动 main)→ 跑集成 gate。 */
   integrate(featureBranch: string, opts: IntegrateOpts, gate: () => Promise<GateResult>): Promise<IntegrateResult>;
   /** 批量集成 N 个 feature(军规 8):clean+green 合入,冲突/gate 红回滚并 held 升级;不动 main、不自动解冲突(军规 1)。
-   *  gatePerFeature 接收当前 feature 分支,使调用方可按项目路由 gate(支持多项目混批)。 */
+   *  gatePerFeature 接收当前 feature 分支,使调用方可按项目路由 gate(支持多项目混批)。
+   *  sensitiveCheck(可选,M6-b):返回 feature 触及的敏感类别;非空 → held(sensitive)不自动合,路由人签。不传则不查(向后兼容)。 */
   batchIntegrate(
     featureBranches: string[],
     opts: IntegrateOpts,
     gatePerFeature: (branch: string) => Promise<GateResult>,
+    sensitiveCheck?: (branch: string) => Promise<string[]>,
   ): Promise<BatchIntegrateResult>;
 }
 
@@ -108,7 +112,7 @@ export function makeWorktreeManager(
       return { ok: g.ok, ready: g.ok, summary: g.summary };
     },
 
-    async batchIntegrate(featureBranches, o, gatePerFeature) {
+    async batchIntegrate(featureBranches, o, gatePerFeature, sensitiveCheck) {
       // 跨批次累积:integration 不存在则从 base 建,已存在则复用(不重置到 base),在其上累加本批。
       // 不切主检出 HEAD(军规 2)。
       const exists = (await run('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${o.integrationBranch}`], repoRoot)).exitCode === 0;
@@ -121,6 +125,14 @@ export function makeWorktreeManager(
       const merged: string[] = [];
       const held: BatchHeld[] = [];
       for (const branch of featureBranches) {
+        // M6-b 敏感改动加严审批:触及鉴权/CI/基础设施 → held(sensitive)路由人签,不自动合(红线7/D1)。不注入则跳过(向后兼容)。
+        if (sensitiveCheck) {
+          const categories = await sensitiveCheck(branch);
+          if (categories.length > 0) {
+            held.push({ branch, reason: 'sensitive', categories });
+            continue;
+          }
+        }
         const cur = (await run('git', ['-C', o.intWorktree, 'rev-parse', 'HEAD'], repoRoot)).stdout.trim();
         const m = await run('git', ['-C', o.intWorktree, 'merge', '--squash', branch], repoRoot);
         if (m.exitCode !== 0) {

@@ -79,6 +79,35 @@ describe('batchIntegrate（N 分支集成 + 冲突回滚升级,不动 main）', 
     expect(calls(run).some((c) => /reset --hard/.test(c))).toBe(true);
   });
 
+  it('未注入 sensitiveCheck → 行为照旧(全 merged,无 sensitive held)', async () => {
+    const run = mkRun();
+    const r = await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['a', 'b'], opts, async () => ({ ok: true }));
+    expect(r.merged).toEqual(['a', 'b']);
+    expect(r.held).toEqual([]);
+  });
+
+  it('注入 sensitiveCheck:命中 → held(sensitive,categories)不自动合,不触 merge', async () => {
+    const run = mkRun();
+    const sensitive = async (branch: string) => (branch === 'b' ? ['ci'] : []);
+    const r = await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['a', 'b', 'c'], opts, async () => ({ ok: true }), sensitive);
+    expect(r.merged).toEqual(['a', 'c']);
+    expect(r.held).toEqual([{ branch: 'b', reason: 'sensitive', categories: ['ci'] }]);
+    expect(r.ready).toBe(false);
+    // 敏感分支跳过 merge(不对 b 做 squash-merge)
+    expect(run).not.toHaveBeenCalledWith('git', ['-C', '/int', 'merge', '--squash', 'b'], repoRoot);
+  });
+
+  it('敏感 held 与 conflict held 并存,干净普通照常合', async () => {
+    const run = mkRun(['bad']); // bad 冲突
+    const sensitive = async (branch: string) => (branch === 'sec' ? ['auth'] : []);
+    const r = await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['sec', 'bad', 'c'], opts, async () => ({ ok: true }), sensitive);
+    expect(r.merged).toEqual(['c']);
+    expect(r.held).toEqual([
+      { branch: 'sec', reason: 'sensitive', categories: ['auth'] },
+      { branch: 'bad', reason: 'conflict' },
+    ]);
+  });
+
   it('首批(integration 不存在)→ 从 base 创建(worktree add -b,不动主检出)', async () => {
     const run = mkRun([], false); // 分支不存在
     await makeWorktreeManager(run, { repoRoot }).batchIntegrate(['a'], opts, async () => ({ ok: true }));

@@ -59,4 +59,10 @@
 - **绝不硬编码密钥/凭证**：API key、token、密码、私钥不得写进源码（用环境变量/密钥管理）。green 门含**密钥扫描**（`driver/secret-scan.ts`），扫本次改动 diff，命中 `ghp_`/`github_pat_`/AWS `AKIA`/PEM 私钥块/`api_key|secret|token|password = "…"` 即 **green 红**，须移除/参数化后才能交付。
 - **合法例外用内联豁免（须带理由）**：确为非真密钥（测试夹具、文档示例）时，在命中行同行或紧邻上一行加 `// allowlist-secret: <理由>`（**空理由不豁免**，防滥用）。豁免是显式可审计的例外，**绝不为消除误报无理由弱化门**（同 Stryker `// Stryker disable` 纪律）。
 
+### 敏感改动需人签（M6-b · 不可绕过）
+
+- 触及**敏感面**的改动即便 clean+green 也**不会自动合**，而是 held 路由人类签字（`sensitive-change.ts` + batchIntegrate；红线7 人类门禁不可绕过、军规7、D1）。敏感面三类（路径判定）：**鉴权/凭证**（`auth`/`login`/`oauth`/`credential`/`session`）、**CI/CD 配置**（`.github/`/`*.ci.yml`/`Jenkinsfile`）、**基础设施/部署**（`Dockerfile`/`*.tf`/`k8s/`/`deploy/`）。
+- 这与密钥扫描（M6-a）不同：密钥是 must-fix（agent 移除）；敏感改动是**合法但需人签**——agent 照常交付（squash 出分支），但由人类审查签字后手动合，**agent 不得自行合入敏感改动**。
+- 依赖清单（package.json/lockfile）**不算敏感**（机器可判、无需人裁决）。
+
 > 修正记录：随技术栈扩展（如引入新语言/框架）在此追加对应约定。

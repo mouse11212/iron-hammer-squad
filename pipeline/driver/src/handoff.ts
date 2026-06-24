@@ -9,9 +9,10 @@ export interface HandoffOpts {
   generatedAt: string;
 }
 
-const REASON_TEXT: Record<'conflict' | 'gate', string> = {
+const REASON_TEXT: Record<'conflict' | 'gate' | 'sensitive', string> = {
   conflict: '冲突(conflict):与已集成内容冲突,需人工解决后重投队列',
   gate: '门禁(gate):集成 gate 未过,需修复后重投队列',
+  sensitive: '敏感改动(sensitive):触及敏感面,需人类签字后手动合(红线7/D1)',
 };
 
 /** 渲染集成交接报告。integration 为 null 表示本批无集成产出。 */
@@ -42,7 +43,7 @@ export function renderHandoffReport(integration: BatchIntegrateResult | null, op
 
   if (integration.held.length > 0) {
     lines.push('## ⚠️ 挂起(需人处理)', '');
-    lines.push(...integration.held.map((h) => `- ${h.branch} — ${REASON_TEXT[h.reason]}`));
+    lines.push(...integration.held.map((h) => `- ${h.branch} — ${REASON_TEXT[h.reason]}${h.categories?.length ? `[${h.categories.join(', ')}]` : ''}`));
     lines.push('');
   }
 
