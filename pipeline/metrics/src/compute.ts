@@ -19,9 +19,9 @@ export function verificationTax(verificationMs: number, implementationMs: number
   return denom === 0 ? 0 : verificationMs / denom;
 }
 
-/** 逃逸 / 总；总为 0 返回 0(不除零)。 */
-export function defectEscapeRate(escaped: number, total: number): number {
-  return total === 0 ? 0 : escaped / total;
+/** 逃逸 / 总；总为 0 返回 null(待埋点,不伪造 0%——无缺陷≠门有效,可能只是没在看)。 */
+export function defectEscapeRate(escaped: number, total: number): number | null {
+  return total === 0 ? null : escaped / total;
 }
 
 /** 聚合 inner-loop 运行 KPI(纯)：状态分布 / 升级率 / 回修轮次分布 / 成本。 */

@@ -30,7 +30,7 @@ describe('harness 四指标(纯函数)', () => {
   it('DefectEscapeRate = 逃逸/总', () => {
     expect(defectEscapeRate(1, 4)).toBe(0.25);
   });
-  it('DefectEscapeRate 总为 0 → 0(不除零)', () => {
-    expect(defectEscapeRate(0, 0)).toBe(0);
+  it('DefectEscapeRate 总为 0 → null(待埋点,不伪造 0%)', () => {
+    expect(defectEscapeRate(0, 0)).toBe(null);
   });
 });

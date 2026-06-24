@@ -7,6 +7,8 @@ function pct(x: number): string {
 /** 纯函数：把指标快照渲染为 markdown 看板。缺口指标显示"待埋点"，不伪造数值。 */
 export function renderBoard(s: MetricsSnapshot): string {
   const vt = s.verificationTax === null ? '待埋点(实现耗时未采集)' : pct(s.verificationTax);
+  const der = s.defectEscapeRate === null ? '待埋点(无缺陷记录)' : pct(s.defectEscapeRate);
+  const caught = s.defects.total - s.defects.escaped;
   const lines = [
     '# 铁锤小队 · Harness 看板',
     '',
@@ -19,7 +21,7 @@ export function renderBoard(s: MetricsSnapshot): string {
     `| Task Resolution Rate | ${pct(s.taskResolutionRate)} | 已解决 ${s.resolved} / 尝试 ${s.attempted} |`,
     `| Code Churn | +${s.codeChurn.added} / -${s.codeChurn.removed}（${s.codeChurn.files} 文件） | diff 代理 |`,
     `| Verification Tax | ${vt} | 验证 ${s.verificationMs ?? '—'}ms / 实现 ${s.implementationMs ?? '—'}ms |`,
-    `| Defect Escape Rate | ${pct(s.defectEscapeRate)} | 逃逸 ${s.defects.escaped} / 总 ${s.defects.total} |`,
+    `| Defect Escape Rate | ${der} | 逃逸 ${s.defects.escaped}（git 全历史） / 拦截 ${caught}（当前 runtime） |`,
     '',
     '## 追溯链（change → spec → tests → commit）',
     '',

@@ -38,6 +38,15 @@ describe('看板渲染(纯函数)', () => {
     expect(md).toMatch(/Verification Tax.*待埋点/s);
     expect(md).not.toContain('Verification Tax | null');
   });
+  it('Defect 行分别显示 拦截/逃逸 数并标注时间口径', () => {
+    const md = renderBoard(snap); // total 3, escaped 0 → 拦截 3
+    expect(md).toMatch(/Defect Escape Rate \| 0\.0% \| 逃逸 0（git 全历史） \/ 拦截 3（当前 runtime）/);
+  });
+  it('Defect Escape Rate 为 null → 显示"待埋点"而非伪造 0%', () => {
+    const md = renderBoard({ ...snap, defectEscapeRate: null, defects: { total: 0, escaped: 0 } });
+    expect(md).toMatch(/Defect Escape Rate.*待埋点/s);
+    expect(md).not.toMatch(/Defect Escape Rate \| 0\.0%/);
+  });
   it('无 inner-loop 数据时不渲染该区块', () => {
     expect(renderBoard(snap)).not.toContain('inner-loop');
   });

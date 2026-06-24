@@ -1,5 +1,0 @@
-[
-  { "id": "m2a-data-safety", "where": "caught", "note": "全源失败覆盖产物——评审#2(Judge)合并前抓到" },
-  { "id": "m2a-mutation-gaps", "where": "caught", "note": "Invalid Date 排序 2 个弱测试——变异门抓到" },
-  { "id": "m3-claude-stdin", "where": "caught", "note": "claude --print 等 stdin 挂死——冒烟抓到" }
-]

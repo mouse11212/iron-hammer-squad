@@ -1,10 +1,11 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { MetricsSnapshot, Numstat, DefectRecord, InnerLoopRunRecord, TraceTax } from './types.js';
+import type { MetricsSnapshot, Numstat, InnerLoopRunRecord, TraceTax } from './types.js';
 import { taskResolutionRate, codeChurn, verificationTax, defectEscapeRate, innerLoopStats } from './compute.js';
 import { categorizeDuration, taxByTrace, readEventsJsonl } from './events-tax.js';
 import { weaveTraces, readArchivedChanges } from './weave-traces.js';
+import { deriveDefects, readEscapeTrailers } from './defects-feed.js';
 
 /** 薄 IO：解析 git numstat 为 Numstat[]（二进制文件的 '-' 跳过）。 */
 function gitNumstat(repoRoot: string): Numstat[] {
@@ -32,10 +33,6 @@ function countChanges(repoRoot: string): { resolved: number; attempted: number }
   return { resolved, attempted: resolved + active };
 }
 
-function readJson<T>(path: string, fallback: T): T {
-  return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as T) : fallback;
-}
-
 /** 扫描 inner-loop 运行目录(.runtime/runs/<jobId>/state.json)→ 运行记录。 */
 function readInnerLoopRuns(runsDir: string): InnerLoopRunRecord[] {
   if (!existsSync(runsDir)) return [];
@@ -44,9 +41,15 @@ function readInnerLoopRuns(runsDir: string): InnerLoopRunRecord[] {
     if (!d.isDirectory()) continue;
     const statePath = join(runsDir, d.name, 'state.json');
     if (!existsSync(statePath)) continue;
-    const rec = JSON.parse(readFileSync(statePath, 'utf8')) as Partial<InnerLoopRunRecord>;
+    const rec = JSON.parse(readFileSync(statePath, 'utf8')) as Partial<InnerLoopRunRecord> & { residual?: unknown[] };
     if (rec.status === undefined || typeof rec.fixRounds !== 'number') continue; // 跳过未完成/畸形
-    records.push({ jobId: rec.jobId ?? d.name, status: rec.status, fixRounds: rec.fixRounds, costUsd: rec.costUsd });
+    records.push({
+      jobId: rec.jobId ?? d.name,
+      status: rec.status,
+      fixRounds: rec.fixRounds,
+      costUsd: rec.costUsd,
+      residualCount: Array.isArray(rec.residual) ? rec.residual.length : undefined, // escalated 的 caught 源
+    });
   }
   return records;
 }
@@ -57,7 +60,9 @@ export function collect(repoRoot: string, dataDir: string, now: string): Metrics
   const { resolved, attempted } = countChanges(repoRoot);
   // 追溯链:从 OpenSpec archive + git 自动织链(M4+ 续切片②),取代手维护 traces.json。
   const traces = weaveTraces(readArchivedChanges(repoRoot));
-  const defects = readJson<DefectRecord[]>(join(dataDir, 'defects.json'), []);
+  const runs = readInnerLoopRuns(join(repoRoot, 'pipeline', '.runtime', 'runs'));
+  // 缺陷自动喂(M4+ 续切片③):caught 从 inner-loop run 派生(ephemeral)、escaped 从 git trailer 挖采(持久),取代手维护 defects.json。
+  const defects = deriveDefects(runs, readEscapeTrailers(repoRoot));
   const escaped = defects.filter((d) => d.where === 'escaped').length;
   // Verification Tax:从统一事件日志(events.jsonl)派生实现/验证耗时(M4+ 续切片,接 durationMs 钩子)。
   const events = readEventsJsonl(join(repoRoot, 'pipeline', '.runtime', 'events.jsonl'));
@@ -66,7 +71,6 @@ export function collect(repoRoot: string, dataDir: string, now: string): Metrics
   const implementationMs: number | null = split.implementationMs === 0 ? null : split.implementationMs;
   const verificationMs: number | null = events.length === 0 ? null : split.verificationMs;
   const taxRows: TraceTax[] = [...taxByTrace(events)].map(([traceId, t]) => ({ traceId, ...t }));
-  const runs = readInnerLoopRuns(join(repoRoot, 'pipeline', '.runtime', 'runs'));
   return {
     generatedAt: now,
     taskResolutionRate: taskResolutionRate(resolved, attempted),

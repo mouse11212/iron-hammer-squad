@@ -26,12 +26,17 @@ export interface TraceLink {
   commit: string;
 }
 
+/** inner-loop 运行终态。 */
+export type InnerLoopStatus = 'done' | 'failed' | 'blocked-escalated';
+
 /** 一次 inner-loop 运行记录(从 .runtime/runs/<jobId>/state.json 读)。 */
 export interface InnerLoopRunRecord {
   jobId: string;
-  status: 'done' | 'failed' | 'blocked-escalated';
+  status: InnerLoopStatus;
   fixRounds: number;
   costUsd?: number;
+  /** escalated 的 residual must-fix 数(缺陷自动喂的 caught 源)。 */
+  residualCount?: number;
 }
 
 /** inner-loop 运行聚合 KPI(自主 run 的可度量画像)。 */
@@ -65,7 +70,7 @@ export interface MetricsSnapshot {
   verificationTax: number | null; // 验证耗时/(验证+实现);无实现事件→null
   verificationMs: number | null;
   implementationMs: number | null; // 实现耗时(dev phase);无 events→null
-  defectEscapeRate: number; // 逃逸/总
+  defectEscapeRate: number | null; // 逃逸/总;总为 0→null(待埋点)
   defects: { total: number; escaped: number };
   traces: TraceLink[];
   /** Verification Tax 按 US 明细(从 events.jsonl 派生;无 events 时空数组,看板省略该区)。 */

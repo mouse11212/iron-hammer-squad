@@ -36,8 +36,8 @@ pipeline/
 │       ├── worktree.ts         # M5-B worktree 隔离 + squash + 集成分支兜底(军规 3/8;绝不写 main)
 │       └── inner-loop-runner.ts # M5 真实装配 + M5-B runIsolated(worktree 隔离编排)
 └── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
-    ├── src/{types,compute,trace,board,collect,events-tax,weave-traces,bin-report,bin-weave}.ts
-    └── data/{traces,defects}.json   # traces.json 现为自动生成产物(npm run weave),勿手改
+    ├── src/{types,compute,trace,board,collect,events-tax,weave-traces,defects-feed,bin-report,bin-weave}.ts
+    └── data/traces.json             # 自动派生产物(npm run weave),勿手改;defects 改为 collect 内存派生(run信号+git trailer),无文件
 ```
 
 ## metrics/ 用法（② 可观测）
@@ -49,7 +49,8 @@ npm run weave -- <repoRoot>    # 把自动织的追溯链写出 data/traces.json
 ```
 四指标:Task Resolution Rate / Code Churn / Verification Tax / Defect Escape Rate。**无标准基线,需产线标定(V4 §7)**;未埋点项显示"待埋点"不伪造。
 **Verification Tax 已真值化(M4+ 续切片①)**:从统一事件日志 `<pipeline>/.runtime/events.jsonl` 的 `durationMs` 派生——实现=dev phase,验证=test/review phase + gate + orchestrator-fix(`events-tax.ts`);看板出聚合 + 按 US(traceId) 明细。无 events 时优雅回落"待埋点"(events.jsonl 为 ephemeral,反映当前运行时的 runs)。
-**追溯链已自动织链(M4+ 续切片②)**:`changeId→spec→tests→commit` 从 OpenSpec archive + git 确定性派生(`weave-traces.ts`:纯 `weaveTraces` + 薄 `readArchivedChanges`),取代手维护 traces.json——锚点=归档 commit(同含 archive+实现+测试);早期 change 若归档与实现分属不同 commit,tests 诚实退化为空(不臆造)。**未做**:Defect Escape 自动喂、持久化指标存储、metrics 包级 stryker 变异门。
+**追溯链已自动织链(M4+ 续切片②)**:`changeId→spec→tests→commit` 从 OpenSpec archive + git 确定性派生(`weave-traces.ts`:纯 `weaveTraces` + 薄 `readArchivedChanges`),取代手维护 traces.json——锚点=归档 commit(同含 archive+实现+测试);早期 change 若归档与实现分属不同 commit,tests 诚实退化为空(不臆造)。
+**Defect 已自动喂(M4+ 续切片③)**:`caught` 从 inner-loop run 信号确定性派生(`fixRounds`+escalated `residual`;ephemeral=当前 runtime),`escaped` 从 git commit trailer `Defect-Escaped:` 挖采(持久;`defects-feed.ts`:纯 `deriveDefects` + 薄 `readEscapeTrailers`),取代手维护 defects.json——逃逸判定归人(打 trailer,见 `guides/agent-conventions.md`)、采集归机。`defectEscapeRate` 总数 0→null("待埋点",不伪造 0%);看板分别显示拦截/逃逸数并标注时间口径。**固有限制**:caught(ephemeral)/escaped(持久) 口径不对称,完全可比待"持久化指标存储"切片。**未做**:driver 自动 emit `Defect-Caught:` trailer(caught 持久化)、持久化指标存储、metrics 包级 stryker 变异门。
 
 ## driver/ 用法（① Loop 引擎）
 
@@ -76,7 +77,7 @@ npx tsx src/mcp-server.ts <queue.db>   # 工具:enqueue/claim/ack/fail/status
 # 凭 jobId(=traceId) 回放一个 US 的全链操作事件(按 ts 排序:phase→gate→squash→integrate)
 npm run replay -- <traceId> [eventsPath]
 ```
-schema 含 `durationMs` 字段(为后续 Verification Tax 切片预埋钩子)。埋点为 computational sensor:纯构造器 + 时钟注入(确定可测),IO 锁在薄 sink(`events.ts`/`replay.ts`/`instrument.ts`,变异门 100%/85%/100%)。**已补:** Verification Tax 计算(续切片①)、追溯链自动织链(续切片②)。**未做(留后续切片):** Defect Escape 自动喂、持久化指标存储。
+schema 含 `durationMs` 字段(为后续 Verification Tax 切片预埋钩子)。埋点为 computational sensor:纯构造器 + 时钟注入(确定可测),IO 锁在薄 sink(`events.ts`/`replay.ts`/`instrument.ts`,变异门 100%/85%/100%)。**已补:** Verification Tax 计算(续切片①)、追溯链自动织链(续切片②)、Defect 自动喂(续切片③)。**未做(留后续切片):** driver 自动 emit `Defect-Caught:` trailer、持久化指标存储。
 
 ## 终极形态：可安装为 Claude Code 技能/插件（目标，持续完善）
 
