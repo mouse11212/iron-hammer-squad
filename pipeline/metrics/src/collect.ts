@@ -1,11 +1,12 @@
 import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { MetricsSnapshot, Numstat, InnerLoopRunRecord, TraceTax } from './types.js';
+import type { MetricsSnapshot, Numstat, TraceTax } from './types.js';
 import { taskResolutionRate, codeChurn, verificationTax, defectEscapeRate, innerLoopStats } from './compute.js';
 import { categorizeDuration, taxByTrace, parsePhaseMsTrailer } from './events-tax.js';
 import { weaveTraces, readArchivedChanges } from './weave-traces.js';
 import { deriveDefects, mineTrailers, readCaughtTrailers, readEscapeTrailers } from './defects-feed.js';
+import { readRunLedger } from './run-ledger.js';
 
 /** 薄 IO：解析 git numstat 为 Numstat[]（二进制文件的 '-' 跳过）。 */
 function gitNumstat(repoRoot: string): Numstat[] {
@@ -33,28 +34,14 @@ function countChanges(repoRoot: string): { resolved: number; attempted: number }
   return { resolved, attempted: resolved + active };
 }
 
-/** 扫描 inner-loop 运行目录(.runtime/runs/<jobId>/state.json)→ 运行记录。 */
-function readInnerLoopRuns(runsDir: string): InnerLoopRunRecord[] {
-  if (!existsSync(runsDir)) return [];
-  const records: InnerLoopRunRecord[] = [];
-  for (const d of readdirSync(runsDir, { withFileTypes: true })) {
-    if (!d.isDirectory()) continue;
-    const statePath = join(runsDir, d.name, 'state.json');
-    if (!existsSync(statePath)) continue;
-    const rec = JSON.parse(readFileSync(statePath, 'utf8')) as Partial<InnerLoopRunRecord>;
-    if (rec.status === undefined || typeof rec.fixRounds !== 'number') continue; // 跳过未完成/畸形
-    records.push({ jobId: rec.jobId ?? d.name, status: rec.status, fixRounds: rec.fixRounds, costUsd: rec.costUsd });
-  }
-  return records;
-}
-
 /** 采集真实仓库 → MetricsSnapshot。verificationMs 暂未按 change 埋点 → null。 */
 export function collect(repoRoot: string, dataDir: string, now: string): MetricsSnapshot {
   const churn = codeChurn(gitNumstat(repoRoot));
   const { resolved, attempted } = countChanges(repoRoot);
   // 追溯链:从 OpenSpec archive + git 自动织链(M4+ 续切片②),取代手维护 traces.json。
   const traces = weaveTraces(readArchivedChanges(repoRoot));
-  const runs = readInnerLoopRuns(join(repoRoot, 'pipeline', '.runtime', 'runs'));
+  // inner-loop 统计:从持久 ledger 读(M4+ 续切片⑥,收尾),取代 ephemeral .runtime/runs;按 jobId 去重已在 readRunLedger。
+  const runs = readRunLedger(join(repoRoot, 'docs', 'metrics', 'runs-ledger.jsonl'));
   // 缺陷自动喂(M4+ 续切片③→④):caught(机器写 Defect-Caught:)与 escaped(人写 Defect-Escaped:)均从 git trailer 挖采——同口径持久,率完全可比。取代手维护 defects.json 与切片③ 的 runtime run 派生。
   const defects = deriveDefects(readCaughtTrailers(repoRoot), readEscapeTrailers(repoRoot));
   const escaped = defects.filter((d) => d.where === 'escaped').length;

@@ -47,4 +47,11 @@
 - **只报原始事实，不预算 impl/verif**：哪类算"验证"是度量口径（D1），只活在 metrics（`events-tax.ts categorizeDuration`）。改口径时历史 trailer 自动按新口径重算——故 trailer 存未定性的原始分类耗时。
 - **人勿手打 `Metrics-Phase-Ms:`**——机器信号；metrics 从 `git log` 挖采 → 还原最小事件 → 复用 D1 口径，VTax 持久且 fresh checkout 可复现。
 
+### inner-loop 统计走持久 ledger（人只读勿手编）
+
+- `docs/metrics/runs-ledger.jsonl` 是 **driver 机器 append** 的 run 账本（`run-ledger.ts`）：每个终态 run（done/failed/**blocked-escalated**）完成时追加一行 `{jobId,status,fixRounds,costUsd,ts}`。
+- **为什么是 ledger 而非 trailer**：升级率/失败率需要 escalated/failed run，而它们**不产生提交**，git 无痕——trailer 持久不了"没提交的事"。ledger 是唯一出路。
+- **固有性质**：ledger **持久但不可从 git 复现**（累积记录，非可推导）——这是非提交型信号的本性，不是缺陷。metrics 读时**按 jobId 去重**（后写覆盖，幂等）。
+- **人只读勿手编**：它是机器账本；要清理只整行删除，勿改既有行的数字（会失真）。
+
 > 修正记录：随技术栈扩展（如引入新语言/框架）在此追加对应约定。

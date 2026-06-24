@@ -15,6 +15,7 @@ import { instrumentRunPhase, instrumentGateCmd, instrumentOrchestratorFix, emitS
 import { squashMessage } from './squash-message.js';
 import { aggregatePhaseMs } from './aggregate-phase-ms.js';
 import { readEvents } from './replay.js';
+import { runLedgerRecord, appendRunLedger } from './run-ledger.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -195,6 +196,11 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
   // per-job state.json:状态机结果 + 可度量字段(jobId/costUsd),供 metrics 聚合
   const record = { jobId, ...result, costUsd };
   writeFileSync(join(runsDir, 'state.json'), JSON.stringify(record, null, 2), 'utf8');
+  // 持久化 inner-loop 统计到 committed ledger(M4+⑥,收尾):每个终态 run 都 append,覆盖 escalated/failed(trailer 做不到)。
+  appendRunLedger(
+    join(pipeline, '..', 'docs', 'metrics', 'runs-ledger.jsonl'),
+    runLedgerRecord(jobId, result, costUsd, new Date().toISOString()),
+  );
   return result;
 }
 
