@@ -18,8 +18,15 @@
 .env.*
 *.pem
 *.key
-*token*
-*secret*
+# 精确密钥文件模式(原 *token*/*secret* 子串模式过宽:会静默丢弃合法安全特性代码,
+# 如 M6-a secret-scan.ts;提交期保护已由密钥扫描门 security-gate 提供)
+*.secret
+*.secrets
+secrets.json
+secrets.*.json
+.secrets/
+*.token
+.token
 .npmrc
 
 # ── 系统 / 编辑器 ──

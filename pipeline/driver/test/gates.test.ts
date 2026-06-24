@@ -26,6 +26,26 @@ describe('makeGates（注入命令执行器，确定性判定）', () => {
     expect(r.summary).toMatch(/typecheck/);
   });
 
+  it('GREEN gate:未注入 secretScan → 行为照旧(lint/tsc/test 全 0 即 ok,不调扫描)', async () => {
+    const gates = makeGates(runnerByCmd({}), { cwd: '/x' }); // 无 secretScan
+    expect((await gates.green()).ok).toBe(true);
+  });
+
+  it('GREEN gate:注入 secretScan 命中 → green 红,带扫描摘要', async () => {
+    const gates = makeGates(runnerByCmd({}), {
+      cwd: '/x',
+      secretScan: async () => ({ ok: false, summary: '密钥扫描命中: a.ts:3 [github-pat]' }),
+    });
+    const r = await gates.green();
+    expect(r.ok).toBe(false);
+    expect(r.summary).toMatch(/密钥扫描命中/);
+  });
+
+  it('GREEN gate:注入 secretScan 干净 + 命令全 0 → green 通过(交付不受影响)', async () => {
+    const gates = makeGates(runnerByCmd({}), { cwd: '/x', secretScan: async () => ({ ok: true }) });
+    expect((await gates.green()).ok).toBe(true);
+  });
+
   it('RED gate:测试非 0(如期红)→ ok', async () => {
     const gates = makeGates(runnerByCmd({ 'npm test': failRes('1 failed') }), { cwd: '/x' });
     expect((await gates.red()).ok).toBe(true);

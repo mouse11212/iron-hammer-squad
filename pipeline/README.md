@@ -33,6 +33,7 @@ pipeline/
 │       ├── mcp-server.ts       # M5-A/E5 stdio MCP 封装(enqueue/claim/ack/fail/status)
 │       ├── inner-loop.ts       # M5 PEV 状态机(纯逻辑:回修止损+域归属+升级)
 │       ├── {verdict,gates,prompts}.ts  # M5 评审解析 / 确定性 gate(变异门按 git diff 动态范围)/ 角色 prompt
+│       ├── secret-scan.ts        # M6-a 安全门:密钥扫描(scanSecrets 纯检测 + secretScanGate;green 可选注入)
 │       ├── worktree.ts         # M5-B worktree 隔离 + squash + 集成分支兜底(军规 3/8;绝不写 main)
 │       └── inner-loop-runner.ts # M5 真实装配 + M5-B runIsolated(worktree 隔离编排)
 └── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
@@ -53,7 +54,11 @@ npm run report:archive -- <repoRoot>  # opt-in:把当前指标快照追加进 do
 **追溯链已自动织链(M4+ 续切片②)**:`changeId→spec→tests→commit` 从 OpenSpec archive + git 确定性派生(`weave-traces.ts`:纯 `weaveTraces` + 薄 `readArchivedChanges`),取代手维护 traces.json——锚点=归档 commit(同含 archive+实现+测试);早期 change 若归档与实现分属不同 commit,tests 诚实退化为空(不臆造)。
 **Defect 已自动喂 + caught 已持久(M4+ 续切片③→④)**:`caught` 与 `escaped` **均从 git commit trailer 挖采**(同口径持久,Defect Escape Rate 完全可比)——`caught`=机器写的 `Defect-Caught:`(driver done run squash 时据 `fixRounds` emit,`squash-message.ts`),`escaped`=人写的 `Defect-Escaped:`(发现合并后缺陷时,判定归人/红线6)。metrics `defects-feed.ts`:纯 `deriveDefects`(两侧每行一记录对称)+ 薄通用 `mineTrailers(repoRoot, key)`。`defectEscapeRate` 总数 0→null("待埋点",不伪造 0%)。**已根治**:切片④ 把 caught 从 runtime(ephemeral)换为 git trailer(持久),消除切片③ 的口径不对称。**固有限制**:escalated run 无提交→caught 不持久(升级人类);历史已合并 done run 无 trailer→不可重建,此后每次 done 自动持久。
 **inner-loop 统计已持久(M4+ 续切片⑥,收尾)**:升级率/成本/回修分布从 ephemeral `.runtime/runs` 换源到 **committed `docs/metrics/runs-ledger.jsonl`**(driver 机器 append `{jobId,status,fixRounds,costUsd,ts}`,`run-ledger.ts`;metrics `readRunLedger` 按 jobId 去重)。**它无法走 trailer**——升级率需 escalated/failed run,而它们不产生提交、git 无痕,ledger 是唯一出路。**诚实限制**:ledger 持久但**不可从 git 复现**(累积记录,非提交型 run 的固有性质);从空起步不回填旧 e2e。
-**report 历史归档(M4+ 续切片⑦)**:`npm run report:archive` opt-in 把当前指标 slim 快照(四 KPI + 解决计数)追加进 committed `docs/metrics/history.jsonl`(`report-history.ts`);`report` 读 history 渲「指标趋势(最近 10 次)」区,服务 ③ Compound 层趋势判断。与 runs-ledger 同构(持久不可复现)。普通 `report` 不污染历史(opt-in)。**未做**:metrics 包级 stryker 变异门、外部通知渠道(留 daemon 长跑时)、daemon 自动采样。
+**report 历史归档(M4+ 续切片⑦)**:`npm run report:archive` opt-in 把当前指标 slim 快照(四 KPI + 解决计数)追加进 committed `docs/metrics/history.jsonl`(`report-history.ts`);`report` 读 history 渲「指标趋势(最近 10 次)」区,服务 ③ Compound 层趋势判断。与 runs-ledger 同构(持久不可复现)。普通 `report` 不污染历史(opt-in)。
+
+## 安全门（M6 · ② Sensors）
+
+**密钥扫描门(M6-a,M6 首切片)**:`driver/secret-scan.ts` 纯 `scanSecrets`(高精度模式:`ghp_`/`github_pat_`/AWS `AKIA`/PEM 私钥块/通用 `key|secret|token|password = "…"`)+ 薄 `secretScanGate`(扫**本次改动 diff**)。**向后兼容注入** green 门(`makeGates` 可选 `secretScan`;不注入零变化,真实装配启用)——命中即 green 红 → dev 回修移除(像 lint,不升级人类;人签留 M6-b)。内联 `// allowlist-secret: <理由>` 豁免(须带理由,不弱化门)。**失败驱动**(真实 PAT 泄露)。**不影响已实现功能**实证:fincards 全量零误报 + 既有 222 driver 测试零改动通过。M6 拆解(a 密钥/b 敏感面升级/c NFR 门/d OWASP agent/e CodeQL)见 backlog。
 
 ## driver/ 用法（① Loop 引擎）
 

@@ -43,6 +43,24 @@
 
 **纪律提醒**：横切、增量推进，从窄到宽（红线3）——先定 schema + traceId 贯穿一条链，再逐步把各操作接入，不一次上统一日志框架。
 
+## 明确待办 · M6 NFR 门 + 安全门（2026-06-24 立项，M5+ 主线）
+
+**动机**：V4 §8（NFR 派生测试入门禁）/§4.7（安全门）/军规7（AI 代码加严审查、CodeQL/Dependabot 前置）。把"质量门"从功能正确性扩到 NFR/安全。
+
+**拆解（从窄到宽，建议施工序）**：
+
+| 子切片 | 内容 | 依赖/摩擦 | 序 |
+|---|---|---|---|
+| **M6-a 密钥扫描门** | 确定性扫改动 diff 找硬编码密钥(`ghp_`/AWS/PEM/通用赋值)→ green 红阻断;内联 `// allowlist-secret: 理由` 豁免 | harness-native、offline、失败驱动(真实 PAT 泄露) | **1 ✅ 已交付** |
+| M6-b 敏感改动加严审批 | 分类 diff 触及敏感面(鉴权/CI/依赖清单/基础设施)→ 升级人类签字(红线7/军规7/D1) | harness-native、需人签流程 | 2 |
+| M6-c NFR 派生测试门 | 从 NFR/SLO 规约派生测试入门禁 | **需 NFR 上游**(§8 标"待完善 SLO 值") | 3 |
+| M6-d OWASP/STRIDE 安全 agent | 威胁建模 agent role(gstack /cso)合并前跑 | agent-driven、方法论 | 4 |
+| M6-e CodeQL/Dependabot | 供应链/静态安全扫描前置 | **需 CI/云**(与本地非云常驻 D9 张力) | 末/可选 |
+
+- **M6-a 已完成**(change `pipeline-secret-scan-gate`)：`driver/secret-scan.ts` 纯 `scanSecrets` + 薄 `secretScanGate`;向后兼容注入进 green 门(不注入零变化,真实装配启用);**不影响已实现功能**实证(fincards 全量零误报、既有 222 测试零改动通过)。详见 `docs/plan/M6-secret-scan-retro.md`。
+
+**纪律提醒**：安全门同样从窄到宽——先 harness-native 确定性门(密钥/敏感面),CodeQL/Dependabot 等需 CI 的留末位;**命中=阻断,豁免须带理由(不弱化门)**。
+
 ## 里程碑细节（仅 M0–M2，后续拿起时再展开）
 
 ### M0 · 单 US 内循环最小切片（先做这个）

@@ -16,6 +16,7 @@ import { squashMessage } from './squash-message.js';
 import { aggregatePhaseMs } from './aggregate-phase-ms.js';
 import { readEvents } from './replay.js';
 import { runLedgerRecord, appendRunLedger } from './run-ledger.js';
+import { secretScanGate } from './secret-scan.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -166,7 +167,13 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
 
   // gate 命令路由进统一事件(补 exitCode/durationMs,取代旧 gates.jsonl 仅记 {cmd,args})。
   const cmd = instrumentGateCmd(makeCmdRunner(), ictx);
-  const gates = makeGates(cmd, { cwd: spec.projectDir });
+  // 安全门(M6-a):green 接入密钥扫描——扫本次改动文件,命中即 green 红 → dev 回修移除。
+  const secretScan = async (): Promise<GateResult> => {
+    const prefix = (await cmd('git', ['rev-parse', '--show-prefix'], spec.projectDir)).stdout.trim();
+    const status = (await cmd('git', ['status', '--porcelain'], spec.projectDir)).stdout;
+    return secretScanGate(spec.projectDir, status, prefix);
+  };
+  const gates = makeGates(cmd, { cwd: spec.projectDir, secretScan });
 
   let costUsd = 0; // 跨所有 phase(含回修)累加的 claude 调用成本(可度量,供 metrics 聚合)
   const result = await runInnerLoop(

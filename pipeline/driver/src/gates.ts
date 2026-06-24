@@ -40,6 +40,8 @@ export interface GateOptions {
   green?: GreenStep[];
   test?: Cmd;
   mutation?: Cmd;
+  /** 可选密钥扫描门(M6-a 安全门):注入则 green 末追加扫描,命中即 green 红;**不注入则 green 行为完全照旧**(向后兼容)。 */
+  secretScan?: () => Promise<GateResult>;
 }
 
 const brief = (r: CmdResult): string => (r.stderr || r.stdout || `exit ${r.exitCode}`).trim().slice(0, 500);
@@ -115,6 +117,11 @@ export function makeGates(run: CmdRunner, opts: GateOptions): {
       for (const s of green) {
         const r = await run(s.cmd, s.args, opts.cwd);
         if (r.exitCode !== 0) return { ok: false, summary: `${s.label} 失败: ${brief(r)}` };
+      }
+      // 安全门(M6-a):注入时在 lint/tsc/test 后追加密钥扫描;不注入则上方逻辑即全部(向后兼容零变化)。
+      if (opts.secretScan) {
+        const sec = await opts.secretScan();
+        if (!sec.ok) return sec;
       }
       return { ok: true };
     },
