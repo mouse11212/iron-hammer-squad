@@ -21,7 +21,7 @@ export function renderBoard(s: MetricsSnapshot): string {
     `| Task Resolution Rate | ${pct(s.taskResolutionRate)} | 已解决 ${s.resolved} / 尝试 ${s.attempted} |`,
     `| Code Churn | +${s.codeChurn.added} / -${s.codeChurn.removed}（${s.codeChurn.files} 文件） | diff 代理 |`,
     `| Verification Tax | ${vt} | 验证 ${s.verificationMs ?? '—'}ms / 实现 ${s.implementationMs ?? '—'}ms |`,
-    `| Defect Escape Rate | ${der} | 逃逸 ${s.defects.escaped}（git 全历史） / 拦截 ${caught}（当前 runtime） |`,
+    `| Defect Escape Rate | ${der} | 逃逸 ${s.defects.escaped} / 拦截 ${caught}（均 git trailer） |`,
     '',
     '## 追溯链（change → spec → tests → commit）',
     '',

@@ -1,15 +1,15 @@
 # 铁锤小队 · Harness 看板
 
-> 生成于 2026-06-24T03:45:58.930Z · 四指标基线无标准值，需产线标定(V4 §7)
+> 生成于 2026-06-24T06:17:40.845Z · 四指标基线无标准值，需产线标定(V4 §7)
 
 ## harness 四指标
 
 | 指标 | 值 | 说明 |
 |---|---|---|
-| Task Resolution Rate | 95.0% | 已解决 19 / 尝试 20 |
-| Code Churn | +36639 / -7064（476 文件） | diff 代理 |
+| Task Resolution Rate | 100.0% | 已解决 21 / 尝试 21 |
+| Code Churn | +37037 / -7106（496 文件） | diff 代理 |
 | Verification Tax | 待埋点(实现耗时未采集) | 验证 —ms / 实现 —ms |
-| Defect Escape Rate | 待埋点(无缺陷记录) | 逃逸 0（git 全历史） / 拦截 0（当前 runtime） |
+| Defect Escape Rate | 待埋点(无缺陷记录) | 逃逸 0 / 拦截 0（均 git trailer） |
 
 ## 追溯链（change → spec → tests → commit）
 
@@ -33,4 +33,5 @@
 | pipeline-dynamic-squash-orchestrator-fix | inner-loop-orchestration/worktree-integration | gates.test.ts | e9dc6fc |
 | pipeline-unified-event-log | observability-events | events-integration.test.ts, events.test.ts, instrument.test.ts, replay.test.ts | c433e68 |
 | pipeline-verification-tax | harness-metrics | board.test.ts, events-tax.test.ts | 93b57cc |
+| pipeline-defect-feed | harness-metrics | board.test.ts, compute.test.ts, defects-feed.test.ts | 1a7c6c2 |
 | pipeline-trace-weaving | harness-metrics | weave-traces.test.ts | a3b973a |

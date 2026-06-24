@@ -12,6 +12,7 @@ import { renderHandoffReport } from './handoff.js';
 import { makeOrchestratorFix } from './orchestrator-fix.js';
 import { makeEventSink, type EventSink } from './events.js';
 import { instrumentRunPhase, instrumentGateCmd, instrumentOrchestratorFix, emitSquash, emitIntegrate } from './instrument.js';
+import { squashMessage } from './squash-message.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -234,7 +235,8 @@ export async function runIsolated(
     let committed = false;
     if (result.status === 'done') {
       // squash 动态据 git status 捕获实际改动(不再传 targetPaths——agent 写在哪/什么名都正确捕获)
-      committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), `feat(${jobId}): inner-loop 交付`);
+      // 据 fixRounds emit Defect-Caught: trailer 持久化 caught(M4+ 续切片④,与人写 Defect-Escaped: 同口径)
+      committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), squashMessage(jobId, result.fixRounds));
     }
     if (deps.emit) {
       emitSquash({ traceId: jobId, emit: deps.emit, clock: deps.clock ?? ((): number => Date.now()) }, { committed, branch: committed ? wtInfo.branch : undefined });

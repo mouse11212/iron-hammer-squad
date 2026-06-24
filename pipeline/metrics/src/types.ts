@@ -35,8 +35,6 @@ export interface InnerLoopRunRecord {
   status: InnerLoopStatus;
   fixRounds: number;
   costUsd?: number;
-  /** escalated 的 residual must-fix 数(缺陷自动喂的 caught 源)。 */
-  residualCount?: number;
 }
 
 /** inner-loop 运行聚合 KPI(自主 run 的可度量画像)。 */

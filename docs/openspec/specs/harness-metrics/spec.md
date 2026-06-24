@@ -90,27 +90,19 @@ TBD - created by archiving change pipeline-m4-metrics-trace. Update Purpose afte
 - **THEN** 把当前派生的 `TraceLink[]` 写出到 `data/traces.json`(覆盖重生成),内容与采集所用派生值一致
 
 ### Requirement: 从 inner-loop 运行与 git trailer 自动喂缺陷记录
-系统 SHALL 提供纯函数,从已读好的 inner-loop 运行记录与 git `Defect-Escaped:` trailer 组装 `DefectRecord[]`,取代手维护 defects.json:**caught** = 每个 run 的 `fixRounds` 次回修各一条 + escalated 的 `residual` must-fix 各一条(`where:'caught'`);**escaped** = 每条 `Defect-Escaped:` trailer 一条(`where:'escaped'`,note=trailer 值)。每条记录 id 稳定可溯源(含 jobId/commit)。
+系统 SHALL 提供纯函数,从 git trailer 组装 `DefectRecord[]`,取代手维护 defects.json:**caught** = 每条 `Defect-Caught:` trailer 一条(`where:'caught'`);**escaped** = 每条 `Defect-Escaped:` trailer 一条(`where:'escaped'`,note=trailer 值)。caught 与 escaped 同源于 git(持久、同口径),两侧每行一记录对称处理。每条记录 id 稳定可溯源(含 commit)。
 
-#### Scenario: fixRounds 派生 caught
-- **WHEN** 传入一个 `status:'done'`、`fixRounds:2` 的 run
-- **THEN** 产出 2 条 `where:'caught'` 记录(回修轮各一),id 含该 jobId
+#### Scenario: caught trailer 派生
+- **WHEN** 传入一条 `{commit:'abc1234', desc:'inner-loop 回修轮 1'}` 的 caught trailer
+- **THEN** 产出 1 条 `{where:'caught', note:'inner-loop 回修轮 1'}`,id 含 commit
 
-#### Scenario: 干净 run 不产缺陷
-- **WHEN** 传入一个 `fixRounds:0`、无 residual 的 done run
-- **THEN** 不产出任何 caught 记录(harness 一次过=未抓到缺陷,不臆造)
-
-#### Scenario: escalated 的 residual 计入 caught
-- **WHEN** 传入一个 `status:'blocked-escalated'`、`fixRounds:1`、`residualCount:2` 的 run
-- **THEN** 产出 1(回修)+ 2(residual)= 3 条 `where:'caught'` 记录(抓到即 caught,含升级未解的)
-
-#### Scenario: trailer 派生 escaped
-- **WHEN** 传入一条 `{commit:'abc123', desc:'卡片渲染漏 today 过滤'}` 的 escape trailer
+#### Scenario: escaped trailer 派生
+- **WHEN** 传入一条 `{commit:'def5678', desc:'卡片渲染漏 today 过滤'}` 的 escape trailer
 - **THEN** 产出 1 条 `{where:'escaped', note:'卡片渲染漏 today 过滤'}`,id 含 commit
 
 #### Scenario: 两侧皆空
-- **WHEN** 无 run 且无 escape trailer
-- **THEN** 产出空数组(不臆造历史记录)
+- **WHEN** 无 caught 且无 escaped trailer
+- **THEN** 产出空数组(不臆造)
 
 ### Requirement: Defect Escape Rate 总数为零时回落 null
 系统 SHALL 在缺陷总数(caught+escaped)为 0 时令 `defectEscapeRate` 返回 `null`(沿用"待埋点"语义,不伪造 0%);总数>0 时返回 `escaped/总数`。看板 SHALL 分别显示 caught 数与 escaped 数并标注各自时间口径(caught=当前 runtime/ephemeral,escaped=git 全历史/持久);率为 null 时显示"待埋点"。
@@ -124,9 +116,20 @@ TBD - created by archiving change pipeline-m4-metrics-trace. Update Purpose afte
 - **THEN** `defectEscapeRate` = null,看板该指标显示"待埋点"而非 0%
 
 ### Requirement: 采集时以自动派生缺陷替代手维护文件
-系统 SHALL 在采集快照时从 `.runtime/runs/*/state.json` 与 `git log` 的 `Defect-Escaped:` trailer 自动派生 `DefectRecord[]` 填充 `MetricsSnapshot`,替代读取手维护 `data/defects.json`;复用既有 run 读取(不重复扫描)。
+系统 SHALL 在采集快照时从 `git log` 挖采 `Defect-Caught:` 与 `Defect-Escaped:` trailer 自动派生 `DefectRecord[]` 填充 `MetricsSnapshot`,替代读取手维护 `data/defects.json` 与切片③ 的 inner-loop runtime run 派生(已被持久 trailer 取代)。
 
-#### Scenario: 快照 defects 来自派生
+#### Scenario: 快照 defects 来自 git trailer
 - **WHEN** 采集快照
-- **THEN** `MetricsSnapshot.defects` 的 caught/escaped 计数来自 run 派生 + trailer 挖采,不读 `data/defects.json`
+- **THEN** `MetricsSnapshot.defects` 的 caught/escaped 计数均来自 git trailer 挖采(同口径持久),不读 `data/defects.json`、不依赖 `.runtime/runs`
+
+### Requirement: 通用 git trailer 挖采
+系统 SHALL 提供薄 IO 通用函数,从 `git log` 挖采指定 key 的 trailer(逐行匹配 `<key>: <value>`),返回 `{commit, desc}[]`;git 失败返回空数组(不抛、不臆造)。caught 与 escaped 挖采复用此函数。
+
+#### Scenario: 挖采指定 key
+- **WHEN** 仓库有一个含 `Defect-Caught: 回修轮 1` 的提交,挖采 key `Defect-Caught`
+- **THEN** 返回含该 `{commit, desc:'回修轮 1'}` 的数组
+
+#### Scenario: git 失败 → 空
+- **WHEN** git 命令失败(非仓库等)
+- **THEN** 返回 `[]`(不抛)
 

@@ -32,7 +32,13 @@
   Defect-Escaped: <一句话描述该逃逸缺陷>
   ```
   metrics 看板会 `git log` 自动挖采这些 trailer 计入 Defect Escape Rate 的逃逸数（`metrics/defects-feed.ts`）。
-- **判定归人、采集归机**：是否算"逃逸"是人类质量判断（红线6）——只在确实溜过门、合并后才发现时才打；**不**给开发期 RED→GREEN、评审 must-fix 这类**合并前**就被拦截的缺陷打（那些是 `caught`，由 inner-loop 运行信号自动派生，无需手标）。
+- **判定归人、采集归机**：是否算"逃逸"是人类质量判断（红线6）——只在确实溜过门、合并后才发现时才打；**不**给开发期 RED→GREEN、评审 must-fix 这类**合并前**就被拦截的缺陷打（那些是 `caught`，见下）。
 - **不臆造**：拿不准是否逃逸 → 不打 trailer（宁可漏记不可伪造，红线1）。
+
+### 拦截缺陷由系统自动打 trailer（人勿手动打）
+
+- `caught`（合并前被评审/门拦截的缺陷）的 trailer 由 **driver 自动 emit**：done run squash 时据 `fixRounds` 写入 N 行 `Defect-Caught: inner-loop 回修轮 <k>`（`squash-message.ts`），随提交持久进 git。
+- **人不要手动打 `Defect-Caught:`**——它是机器信号；caught 与 escaped 同从 `git log` 挖采（`defects-feed.ts` `mineTrailers`），两侧同口径持久，Defect Escape Rate 完全可比。
+- **已知边界**：escalated run 无提交可挂 → 其 caught 不持久（升级人类处理）。
 
 > 修正记录：随技术栈扩展（如引入新语言/框架）在此追加对应约定。

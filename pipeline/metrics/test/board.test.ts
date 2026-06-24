@@ -38,9 +38,9 @@ describe('看板渲染(纯函数)', () => {
     expect(md).toMatch(/Verification Tax.*待埋点/s);
     expect(md).not.toContain('Verification Tax | null');
   });
-  it('Defect 行分别显示 拦截/逃逸 数并标注时间口径', () => {
+  it('Defect 行分别显示 拦截/逃逸 数(均 git trailer 同口径)', () => {
     const md = renderBoard(snap); // total 3, escaped 0 → 拦截 3
-    expect(md).toMatch(/Defect Escape Rate \| 0\.0% \| 逃逸 0（git 全历史） \/ 拦截 3（当前 runtime）/);
+    expect(md).toMatch(/Defect Escape Rate \| 0\.0% \| 逃逸 0 \/ 拦截 3（均 git trailer）/);
   });
   it('Defect Escape Rate 为 null → 显示"待埋点"而非伪造 0%', () => {
     const md = renderBoard({ ...snap, defectEscapeRate: null, defects: { total: 0, escaped: 0 } });
