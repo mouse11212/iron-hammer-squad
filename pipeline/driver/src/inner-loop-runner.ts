@@ -13,6 +13,8 @@ import { makeOrchestratorFix } from './orchestrator-fix.js';
 import { makeEventSink, type EventSink } from './events.js';
 import { instrumentRunPhase, instrumentGateCmd, instrumentOrchestratorFix, emitSquash, emitIntegrate } from './instrument.js';
 import { squashMessage } from './squash-message.js';
+import { aggregatePhaseMs } from './aggregate-phase-ms.js';
+import { readEvents } from './replay.js';
 import type { Queue } from './queue-sqlite.js';
 import {
   runInnerLoop,
@@ -207,6 +209,8 @@ export interface IsolatedDeps {
   emit?: EventSink;
   /** 注入时钟(epoch ms);缺省真实 Date.now。 */
   clock?: () => number;
+  /** 读本 run 各阶段耗时(原始 op 分类);提供则 squash 时打 Metrics-Phase-Ms: trailer 持久化 VTax(M4+⑤)。缺省=不打(向后兼容)。 */
+  readPhaseMs?: (jobId: string) => Record<string, number>;
 }
 
 export interface IsolatedResult {
@@ -235,8 +239,9 @@ export async function runIsolated(
     let committed = false;
     if (result.status === 'done') {
       // squash 动态据 git status 捕获实际改动(不再传 targetPaths——agent 写在哪/什么名都正确捕获)
-      // 据 fixRounds emit Defect-Caught: trailer 持久化 caught(M4+ 续切片④,与人写 Defect-Escaped: 同口径)
-      committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), squashMessage(jobId, result.fixRounds));
+      // emit Defect-Caught:(据 fixRounds,M4+④)+ Metrics-Phase-Ms:(据本 run 阶段耗时,M4+⑤)trailer 持久化 caught/VTax
+      const phaseMs = deps.readPhaseMs?.(jobId);
+      committed = await deps.wt.squashCommit(join(wtInfo.path, relProjectDir), squashMessage(jobId, result.fixRounds, phaseMs));
     }
     if (deps.emit) {
       emitSquash({ traceId: jobId, emit: deps.emit, clock: deps.clock ?? ((): number => Date.now()) }, { committed, branch: committed ? wtInfo.branch : undefined });
@@ -344,8 +349,11 @@ export async function runInnerLoopJobIsolated(jobId: string, spec: InnerLoopJobS
   const runtimeDir = join(pipeline, '.runtime', 'worktrees');
   const cmd = makeCmdRunner();
   const wt = makeWorktreeManager(cmd, { repoRoot, runtimeDir });
-  const emit = makeEventSink(join(pipeline, '.runtime', 'events.jsonl'));
-  return runIsolated(jobId, spec, { wt, runJob: runInnerLoopJob, repoRoot, emit });
+  const eventsPath = join(pipeline, '.runtime', 'events.jsonl');
+  const emit = makeEventSink(eventsPath);
+  // 默认 readPhaseMs:读中心 events.jsonl 聚合本 run 阶段耗时(持久化 VTax 的原始事实,M4+⑤)。
+  const readPhaseMs = (id: string): Record<string, number> => aggregatePhaseMs(readEvents(eventsPath), id);
+  return runIsolated(jobId, spec, { wt, runJob: runInnerLoopJob, repoRoot, emit, readPhaseMs });
 }
 
 export interface RealBatchOpts {

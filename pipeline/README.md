@@ -48,9 +48,9 @@ cd pipeline/metrics && npm install && npm run report -- <repoRoot>
 npm run weave -- <repoRoot>    # 把自动织的追溯链写出 data/traces.json(可检视产物,勿手改)
 ```
 四指标:Task Resolution Rate / Code Churn / Verification Tax / Defect Escape Rate。**无标准基线,需产线标定(V4 §7)**;未埋点项显示"待埋点"不伪造。
-**Verification Tax 已真值化(M4+ 续切片①)**:从统一事件日志 `<pipeline>/.runtime/events.jsonl` 的 `durationMs` 派生——实现=dev phase,验证=test/review phase + gate + orchestrator-fix(`events-tax.ts`);看板出聚合 + 按 US(traceId) 明细。无 events 时优雅回落"待埋点"(events.jsonl 为 ephemeral,反映当前运行时的 runs)。
+**Verification Tax 已真值化 + 已持久(M4+ 续切片①→⑤)**:口径 D1——实现=dev phase,验证=test/review phase + gate + orchestrator-fix(`events-tax.ts categorizeDuration`,**口径单一真相源**)。切片⑤ 把来源从 ephemeral `.runtime/events.jsonl` **换为 git `Metrics-Phase-Ms:` trailer**(driver done run squash 时把本 run 原始 op 分类耗时打进提交,`aggregate-phase-ms.ts`/`squash-message.ts`;metrics `parsePhaseMsTrailer` 还原最小事件复用口径)——VTax 持久且 **fresh checkout 可复现**,per-US 以 commit 短 hash 为键。无 trailer 时回落"待埋点"。**固有限制**:只 done-run 持久(escalated 无提交);历史已合并 done run 无 trailer→不可重建。
 **追溯链已自动织链(M4+ 续切片②)**:`changeId→spec→tests→commit` 从 OpenSpec archive + git 确定性派生(`weave-traces.ts`:纯 `weaveTraces` + 薄 `readArchivedChanges`),取代手维护 traces.json——锚点=归档 commit(同含 archive+实现+测试);早期 change 若归档与实现分属不同 commit,tests 诚实退化为空(不臆造)。
-**Defect 已自动喂 + caught 已持久(M4+ 续切片③→④)**:`caught` 与 `escaped` **均从 git commit trailer 挖采**(同口径持久,Defect Escape Rate 完全可比)——`caught`=机器写的 `Defect-Caught:`(driver done run squash 时据 `fixRounds` emit,`squash-message.ts`),`escaped`=人写的 `Defect-Escaped:`(发现合并后缺陷时,判定归人/红线6)。metrics `defects-feed.ts`:纯 `deriveDefects`(两侧每行一记录对称)+ 薄通用 `mineTrailers(repoRoot, key)`。`defectEscapeRate` 总数 0→null("待埋点",不伪造 0%)。**已根治**:切片④ 把 caught 从 runtime(ephemeral)换为 git trailer(持久),消除切片③ 的口径不对称。**固有限制**:escalated run 无提交→caught 不持久(升级人类);历史已合并 done run 无 trailer→不可重建,此后每次 done 自动持久。**未做**:持久化指标存储、metrics 包级 stryker 变异门。
+**Defect 已自动喂 + caught 已持久(M4+ 续切片③→④)**:`caught` 与 `escaped` **均从 git commit trailer 挖采**(同口径持久,Defect Escape Rate 完全可比)——`caught`=机器写的 `Defect-Caught:`(driver done run squash 时据 `fixRounds` emit,`squash-message.ts`),`escaped`=人写的 `Defect-Escaped:`(发现合并后缺陷时,判定归人/红线6)。metrics `defects-feed.ts`:纯 `deriveDefects`(两侧每行一记录对称)+ 薄通用 `mineTrailers(repoRoot, key)`。`defectEscapeRate` 总数 0→null("待埋点",不伪造 0%)。**已根治**:切片④ 把 caught 从 runtime(ephemeral)换为 git trailer(持久),消除切片③ 的口径不对称。**固有限制**:escalated run 无提交→caught 不持久(升级人类);历史已合并 done run 无 trailer→不可重建,此后每次 done 自动持久。**未做**:inner-loop 升级率/成本持久(需 escalated→ledger 类机制)、metrics 包级 stryker 变异门。
 
 ## driver/ 用法（① Loop 引擎）
 
@@ -77,7 +77,7 @@ npx tsx src/mcp-server.ts <queue.db>   # 工具:enqueue/claim/ack/fail/status
 # 凭 jobId(=traceId) 回放一个 US 的全链操作事件(按 ts 排序:phase→gate→squash→integrate)
 npm run replay -- <traceId> [eventsPath]
 ```
-schema 含 `durationMs` 字段(为后续 Verification Tax 切片预埋钩子)。埋点为 computational sensor:纯构造器 + 时钟注入(确定可测),IO 锁在薄 sink(`events.ts`/`replay.ts`/`instrument.ts`,变异门 100%/85%/100%)。**已补:** Verification Tax 计算(①)、追溯链自动织链(②)、Defect 自动喂(③)、caught 持久化 git trailer(④,driver squash emit `Defect-Caught:`)。**未做(留后续切片):** 持久化指标存储(events/runs ephemeral)。
+schema 含 `durationMs` 字段(为后续 Verification Tax 切片预埋钩子)。埋点为 computational sensor:纯构造器 + 时钟注入(确定可测),IO 锁在薄 sink(`events.ts`/`replay.ts`/`instrument.ts`,变异门 100%/85%/100%)。**已补:** Verification Tax 计算(①)、追溯链自动织链(②)、Defect 自动喂(③)、caught 持久化 git trailer(④)、VTax 持久化 `Metrics-Phase-Ms:` trailer(⑤,fresh checkout 可复现)。**未做(留后续切片):** inner-loop 升级率/成本持久(需 ledger)、metrics 包级 stryker 变异门。
 
 ## 终极形态：可安装为 Claude Code 技能/插件（目标，持续完善）
 

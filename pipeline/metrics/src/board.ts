@@ -6,7 +6,7 @@ function pct(x: number): string {
 
 /** 纯函数：把指标快照渲染为 markdown 看板。缺口指标显示"待埋点"，不伪造数值。 */
 export function renderBoard(s: MetricsSnapshot): string {
-  const vt = s.verificationTax === null ? '待埋点(实现耗时未采集)' : pct(s.verificationTax);
+  const vt = s.verificationTax === null ? '待埋点(无 done-run 指标 trailer)' : pct(s.verificationTax);
   const der = s.defectEscapeRate === null ? '待埋点(无缺陷记录)' : pct(s.defectEscapeRate);
   const caught = s.defects.total - s.defects.escaped;
   const lines = [

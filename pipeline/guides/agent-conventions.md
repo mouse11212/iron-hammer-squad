@@ -41,4 +41,10 @@
 - **人不要手动打 `Defect-Caught:`**——它是机器信号；caught 与 escaped 同从 `git log` 挖采（`defects-feed.ts` `mineTrailers`），两侧同口径持久，Defect Escape Rate 完全可比。
 - **已知边界**：escalated run 无提交可挂 → 其 caught 不持久（升级人类处理）。
 
+### Verification Tax 阶段耗时也由系统打 trailer（人勿手打）
+
+- done run squash 时，driver 据本 run 各阶段耗时追加一行 `Metrics-Phase-Ms: <cat>=<ms> ...`（原始 op 分类耗时：dev/test/review/gate/orchestrator-fix，仅非零项），持久化 Verification Tax 的输入（`squash-message.ts`/`aggregate-phase-ms.ts`）。
+- **只报原始事实，不预算 impl/verif**：哪类算"验证"是度量口径（D1），只活在 metrics（`events-tax.ts categorizeDuration`）。改口径时历史 trailer 自动按新口径重算——故 trailer 存未定性的原始分类耗时。
+- **人勿手打 `Metrics-Phase-Ms:`**——机器信号；metrics 从 `git log` 挖采 → 还原最小事件 → 复用 D1 口径，VTax 持久且 fresh checkout 可复现。
+
 > 修正记录：随技术栈扩展（如引入新语言/框架）在此追加对应约定。

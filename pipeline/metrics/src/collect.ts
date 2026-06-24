@@ -3,9 +3,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MetricsSnapshot, Numstat, InnerLoopRunRecord, TraceTax } from './types.js';
 import { taskResolutionRate, codeChurn, verificationTax, defectEscapeRate, innerLoopStats } from './compute.js';
-import { categorizeDuration, taxByTrace, readEventsJsonl } from './events-tax.js';
+import { categorizeDuration, taxByTrace, parsePhaseMsTrailer } from './events-tax.js';
 import { weaveTraces, readArchivedChanges } from './weave-traces.js';
-import { deriveDefects, readCaughtTrailers, readEscapeTrailers } from './defects-feed.js';
+import { deriveDefects, mineTrailers, readCaughtTrailers, readEscapeTrailers } from './defects-feed.js';
 
 /** 薄 IO：解析 git numstat 为 Numstat[]（二进制文件的 '-' 跳过）。 */
 function gitNumstat(repoRoot: string): Numstat[] {
@@ -58,8 +58,9 @@ export function collect(repoRoot: string, dataDir: string, now: string): Metrics
   // 缺陷自动喂(M4+ 续切片③→④):caught(机器写 Defect-Caught:)与 escaped(人写 Defect-Escaped:)均从 git trailer 挖采——同口径持久,率完全可比。取代手维护 defects.json 与切片③ 的 runtime run 派生。
   const defects = deriveDefects(readCaughtTrailers(repoRoot), readEscapeTrailers(repoRoot));
   const escaped = defects.filter((d) => d.where === 'escaped').length;
-  // Verification Tax:从统一事件日志(events.jsonl)派生实现/验证耗时(M4+ 续切片,接 durationMs 钩子)。
-  const events = readEventsJsonl(join(repoRoot, 'pipeline', '.runtime', 'events.jsonl'));
+  // Verification Tax(M4+ 续切片⑤):从 git `Metrics-Phase-Ms:` trailer 挖采各 done-run 阶段耗时(持久、可复现),
+  // 还原最小事件后经 D1 口径算 tax——取代 ephemeral 的 `.runtime/events.jsonl`。per-US 以 commit 短 hash 为键。
+  const events = mineTrailers(repoRoot, 'Metrics-Phase-Ms').flatMap((t) => parsePhaseMsTrailer(t.desc, t.commit));
   const split = categorizeDuration(events);
   // 无实现事件(无 events 或无 dev)→ implementationMs=null,tax 回落 null(待埋点语义,不臆造)。
   const implementationMs: number | null = split.implementationMs === 0 ? null : split.implementationMs;

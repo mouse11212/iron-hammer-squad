@@ -13,6 +13,26 @@ export interface TaxEvent {
   traceId: string;
 }
 
+/** dev/test/review 是 phase 类别(op='phase'+phase 名);其余(gate/orchestrator-fix)是 op 类别。 */
+const PHASE_CATS = new Set(['dev', 'test', 'review']);
+
+/**
+ * 纯:把 `Metrics-Phase-Ms:` trailer 值(`<cat>=<ms>` 空格分隔)还原为最小 TaxEvent[](持久化 VTax 换源,M4+⑤)。
+ * cat∈{dev,test,review}→`{op:'phase',phase:cat}`;其余→`{op:cat}`。traceId 由调用方(=该 commit)注入。
+ * 畸形片段(无 `=` / ms 非数字)跳过(不臆造)。
+ */
+export function parsePhaseMsTrailer(desc: string, traceId: string): TaxEvent[] {
+  const out: TaxEvent[] = [];
+  for (const token of desc.trim().split(/\s+/).filter(Boolean)) {
+    const m = /^([^=]+)=(\d+)$/.exec(token);
+    if (!m) continue;
+    const cat = m[1] ?? '';
+    const durationMs = Number(m[2]);
+    out.push(PHASE_CATS.has(cat) ? { op: 'phase', phase: cat, durationMs, traceId } : { op: cat, durationMs, traceId });
+  }
+  return out;
+}
+
 export interface DurationSplit {
   implementationMs: number;
   verificationMs: number;
