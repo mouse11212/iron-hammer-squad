@@ -13,15 +13,17 @@
 | **M2** | 多角色编排 | M1 | §3.1、§4.2 | Claude Code subagents 跑通 Planner-Workers-Judge：测试 Agent≠开发 Agent，评审两遍 |
 | **M3** | 事件触发 + 状态外置 | M2 | §3（D4）、§3.1 | 本地事件（规约 delta/测试转绿/合并完成）经胶水 `claude -p` 拉起对应循环；状态/检查点外置，崩溃可恢复 |
 | **M4** | 追溯链 + 看板 + 指标采集 | M3 | §4.4、§7 | 双向追溯链带 ID 可回放；PM 看板；采集 harness 四指标（含 Verification Tax）原始数据 |
-| **M4+** | 可观测闭环（统一日志 + 追溯链自动化） | M4 | §7、§4.4、§3.1 | 每操作一条带 traceId 的结构化事件（统一 schema）；追溯链自动织链（changeId→spec→tests→commit，取代手维护 traces.json）；Verification Tax 按 change 埋点；据 traceId 全链路可回放 |
-| **M5** | 并行内循环 + 消息组件 | M4 | §3.1（D9）、§9 | 第三方消息组件(MCP)支持 2 个并行内循环；worktree 隔离 + 集成分支兜底 + squash |
-| **M6** | NFR 门 + 安全门 | M4 | §8、§4.7、§9军规7 | NFR 派生测试入门禁；OWASP/STRIDE + CodeQL/Dependabot 前置；敏感改动加严审批 |
-| **M7** | drift 监控 | M3 | §6 | ASI 类 sensor（语义相似度/共识率/工具序列一致性）滚动窗口告警；两级拓扑；EMC/ABA |
-| **M8** | 自演进回灌（Steering Loop 自动化） | M4、M7 | §2、§5 | 失败 → 自动产出对 rules/gate 的 diff 建议，**经人类门禁**后固化；带独立回归 sensor 兜底 |
+| ✅ **M4+** | 可观测闭环（统一日志 + 追溯链自动化） | M4 | §7、§4.4、§3.1 | **已封板 2026-06-24**(地基+①–⑦)：统一事件日志 traceId 全链回放；追溯链自动织链(取代手维护 traces.json)；Verification Tax 持久(Metrics-Phase-Ms trailer)；Defect Escape 自动喂(Caught/Escaped trailer);inner-loop 统计持久(runs-ledger);report 历史归档(趋势)。详见 `M4plus-event-log-retro.md` |
+| ✅ **M5** | 并行内循环 + 消息组件 | M4 | §3.1（D9）、§9 | **已完成**：node:sqlite 原子认领队列 + N 路并行 worker + stdio MCP;worktree 隔离 + 集成分支兜底 + squash;daemon 全链。详见 `M5A-retro.md`/`M5-inner-loop-retro.md` |
+| ⬜ **M6（下一个）** | NFR 门 + 安全门 | M4 | §8、§4.7、§9军规7 | NFR 派生测试入门禁；OWASP/STRIDE + CodeQL/Dependabot 前置；敏感改动加严审批 |
+| ⬜ **M7** | drift 监控 | M3 | §6 | ASI 类 sensor（语义相似度/共识率/工具序列一致性）滚动窗口告警；两级拓扑；EMC/ABA |
+| ⬜ **M8** | 自演进回灌（Steering Loop 自动化） | M4、M7 | §2、§5 | 失败 → 自动产出对 rules/gate 的 diff 建议，**经人类门禁**后固化；带独立回归 sensor 兜底 |
 
-> **M4+ 是横切关注点**，可随其它里程碑增量推进，非阻塞主线；展开见下「明确待办」。
+> ✅ **M4+ 已封板**(2026-06-24)。M0–M5 + M4+ 全部完成；**下一主线里程碑 = M6（NFR 门 + 安全门）**。展开见下「明确待办」(M4+ 段已闭，留作历史)。
 
-## 明确待办 · M4+ 可观测闭环（2026-06-23 立项）
+## 明确待办 · M4+ 可观测闭环（2026-06-23 立项 → ✅ 2026-06-24 封板）
+
+> ✅ **已全部完成封板**(地基切片 + 续切片①–⑦,逐个 OpenSpec change 归档,全链真实验证)。完整复盘 + 贯穿洞察见 `docs/plan/M4plus-event-log-retro.md`。本段留作立项历史。**残留零头(非阻塞,见 RESUME §3 待办)**:metrics 包级 stryker 变异门、外部通知渠道、daemon 自动归档采样。
 
 **动机**：V4 §7:204 要求"**所有操作记结构化日志，挂追溯链 ID，全链路可回放**"。M4 已搭骨架（四指标纯计算 + 看板 + 追溯链双向查询 + inner-loop 的 per-phase/gates/state 埋点），但 §7 目标**尚未自动闭合**——日志分散、追溯链手维护、Verification Tax 未埋点。
 

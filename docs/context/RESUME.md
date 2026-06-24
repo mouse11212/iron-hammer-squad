@@ -23,6 +23,7 @@
 | M4 可观测 | ✅ 归档 | `pipeline/metrics/`:四指标+追溯链+看板;真实 dashboard |
 | M5-A 并行队列 | ✅ 归档 | `pipeline/driver/`:node:sqlite 事务原子认领队列 + N 路并行 worker + stdio MCP;4 进程抢 500 条零双领压测 |
 | M5 inner-loop 自动编排 | ✅ 归档 | `pipeline/driver/`:driver 自动驱动多角色 PEV(测试→开发→评审),阶段间确定性 gate,must-fix **热上下文 `--resume` 回修闭环**+止损+域归属,全程 trace。变异门 93.31%。**两个端到端实证**:① `relativeTime` 243s/done/fixRounds=0;② `canonicalizeUrl` 856s/done/**fixRounds=1**——真实 must-fix(评审抓 valueless 参数缺口+豁免等价变异)→ **resume 同一 session 回修**(session_id 一致)→ 收敛;fincards gate 100 绿。**回修闭环已真实坐实** |
+| **M4+ 可观测闭环** | ✅ **封板**(2026-06-24) | `pipeline/metrics`+`driver`:统一事件日志(traceId 全链回放)+ 地基切片①–⑦。四指标(Task Resolution/Churn/Verification Tax/Defect Escape)+ 追溯链 + inner-loop 统计 + 指标趋势**全部真实派生且持久**(trailer/ledger/history;前者 git-可复现,后两者持久)。口径自洽、缺数据诚实回落 null/省略。**全部明细见 `docs/plan/M4plus-event-log-retro.md`(地基+①–⑦)** |
 
 - **抽取线 E0–E5(部分) 已完成**(方案 A 边验证边抽取,产物可持续修正):`pipeline/` 现有 roles/gates/guides/workflows + driver(①,含 M5-A 并发队列/并行驱动/MCP)+ metrics(②)。
 - **产品 fincards** 在 `iron-hammer-output/fincards/`:真四源聚合,TDD + 变异门 100%。
@@ -30,6 +31,10 @@
 - **GitHub**:`mouse11212/iron-hammer-squad`(SSH 推送,无需 token)。
 
 ## 3. 下一步（立即可做）
+
+> ✅ **M4+ 已封板**(2026-06-24;见 §2 表 + `docs/plan/M4plus-event-log-retro.md` 地基+①–⑦)。**M0–M5 + M4+ 全部完成**。
+> **下一步 = M5+:启动 M6（NFR 门 + 安全门）**——NFR 派生测试入门禁 + OWASP/STRIDE + CodeQL/Dependabot 前置 + 敏感改动加严审批(V4 §8/§4.7/军规7;backlog roadmap M6)。M7(drift 监控)/M8(自演进回灌)待排。**待 brainstorm 收敛首切片。**
+> 以下为已完成工作的历史明细(已沉淀进各 retro,略读即可)：
 
 回修闭环已真实实证。✅ inner-loop 接入 M4 看板(成本埋点已产真实值);✅ `canonicalizeUrl` 接线 `aggregate`(规范化去重);✅ **事件驱动全链打通**——SQLite 入队→认领→dispatch→inner-loop→ack done(穿真实队列,`bin-enqueue-sqlite.ts`)。✅ **修复 harness 缺口**:inner-loop 变异门改为**按 git status 动态确定 mutate 范围**(`gates.ts` `mutateTargetsFromStatus`+`mutation()` 用 `--mutate` 覆盖静态 stryker.conf),dev 新建文件不再逃门;driver 变异门 92.64%,stryker `--mutate` 机制实测只变指定文件。✅ **动态变异门真 e2e 确认**:真跑 clampPercent US 暴露并修了子目录路径 bug(`git status --porcelain` 是仓库根相对 → 用 `git rev-parse --show-prefix` 剥成工程相对);实测修复后 gate 跑出 `npm run mutation -- --mutate src/clampPercent.ts`,ok。顺带加 gate 命令 trace(`gates.jsonl`,补阶段间观测盲点)。✅ **M5-B 完成**(M5 DoD 收尾):`worktree.ts`(隔离 worktree + symlink 依赖 + squash 仅 targetPaths + 集成分支兜底,**绝不写 main**/军规 1/2)+ `runIsolated` 编排 + dispatch 开关 `IH_ISOLATION=1`;真集成验证(真 git,无 claude:squash→集成全绿→main HEAD 不变→隔离→回收);worktree.ts 变异门 100%。**真集成又揪出子目录路径坑**(squash 的 `git -C` 用了 worktree 根而非 projectDir,第 3 次同类,已修+固化纪律)。✅ **①完成 批量多分支集成**(军规 8):`worktree.ts` `batchIntegrate`——N feature 汇入 integration,clean+green 合入、冲突/gate 红回滚 held 升级(**不自动解冲突**/军规1、**不写 main**/军规2);真 git 真冲突验证(a/b 冲突→b held、a/c 合入、main 不变、无 unmerged 残留);worktree.ts 变异门 96.72%。✅ **②完成 守护+批后集成**:runIsolated 解耦(只产 feature 分支,不 per-job 集成)+ `drainBatchIsolated`(N 路并行隔离 drain → 收集成功分支 → batchIntegrate)+ `driveParallelLoop`(轮询守护,连续空轮即停;main `IH_DAEMON=1`)。下一步:
 ✅ **③完成 全链真 e2e**:入队→drainBatchIsolated→隔离 worktree 内真 claude 跑内循环→done→squash 产分支→batchIntegrate→`{ready:true,merged:[agent/e2e-iso-1]}`→main 不变→回收(249s)。首跑撞瞬时 API 错误反向验证失败路径(不提交/不集成/回收正确)。
@@ -53,7 +58,7 @@
 - ✅ **M4+ 续切片⑥ 完成 持久化 inner-loop 统计(收尾)**(change `pipeline-persist-runledger`,改 `inner-loop-orchestration`+`harness-metrics` 双 capability):升级率/成本/回修分布从 ephemeral `.runtime/runs` 换源到 **committed `docs/metrics/runs-ledger.jsonl`**。**为什么非 trailer**:升级率需 `blocked-escalated`/`failed` run,而它们**不产生提交**、git 无痕——trailer 持久不了无提交的事,ledger 是唯一出路。**driver**:`run-ledger.ts` 纯 `runLedgerRecord`(slim 投影:只 `{jobId,status,fixRounds,costUsd,ts}`,丢 sessions/residual 噪声)+ 薄 `appendRunLedger`;在 `runInnerLoopJob` 写 state.json 同点(每个终态 run 单一汇合)append。**metrics**:薄 `readRunLedger` 逐行 parse + **按 jobId 去重(后写覆盖,幂等)**;`collect` inner-loop 源换 ledger,retire `.runtime/runs` 读取。driver gate 全绿(222 测试)+ metrics gate 全绿(52 测试)。**真实验证**(临时 repo,非破坏):ledger 含 done×2+escalated×1+failed(同 jobId 重试)→ collect total=3/escalationRate=**0.333**(**escalated 成功持久——trailer 做不到的**)/去重生效;空 ledger→innerLoop 省略。guide 补 ledger 说明。⚠️ **诚实限制**:ledger **持久但不可从 git 复现**(累积记录,非提交型信号固有性质,与前 5 块 git-可复现不同);从空起步不回填旧 e2e。
 - 🎯 **M4+ 可观测闭环主体收尾**:四指标(Task Resolution/Code Churn/Verification Tax/Defect Escape)+ 追溯链 + inner-loop 统计**全部真实派生、持久**(前 5 块 git-可复现,第 6 块 ledger 持久);口径自洽、缺数据诚实回落 null/省略。
 - ✅ **M4+ 续切片⑦ 完成 report 历史归档**(change `pipeline-report-history`,改 `harness-metrics`):`bin-report` 每次覆盖 dashboard.md 只剩"此刻"快照,看不到趋势。新增 `report-history.ts`(纯 `historySnapshot` 投影 slim 趋势记录 `{generatedAt,taskResolutionRate,verificationTax,defectEscapeRate,codeChurnTotal,resolved,attempted}` + 薄 `appendHistory`/`readHistory`)+ CLI `bin-archive.ts`(`npm run report:archive`,**opt-in** 追加快照到 committed `docs/metrics/history.jsonl`,普通 report 不污染);`renderBoard(snap, history?)` 加可选 history 参数渲「指标趋势(最近 N=10)」区(向后兼容:既有无 history 调用零变化),`bin-report` 读 history 传入。metrics gate 全绿(58 测试,+6)。**真实验证**(临时 repo):`report:archive` 跑两次→history 2 行→看板趋势表显示两行;空 history→无趋势区。⚠️ 同 ledger:history 持久但不可 git 复现(归档过去某时刻的值);从空起步不回填。**与⑥ 区别**:⑥ 存 per-run 原子事实,⑦ 存 per-report 聚合快照,互不重复;服务 ③ Compound 层趋势判断。
-- 待办:**M4+ 收尾零头 / M5+**:metrics 包级 stryker 变异门(E4 未配,现靠穷尽精确断言兜底);外部通知渠道(留 daemon 长跑时,涉对外发布的安全裁决);daemon 自动归档采样;comprehension debt 待合阈值告警;M6+。
+- 待办(M4+ 零头,非阻塞):metrics 包级 stryker 变异门(E4 未配,现靠穷尽精确断言兜底);外部通知渠道(留 daemon 长跑时,涉对外发布的安全裁决);daemon 自动归档采样;comprehension debt 待合阈值告警。**M5+ 主线见 §3 顶部:M6 NFR/安全门。**
 - inner-loop 自动编排已落地(取代"调一次 claude"):`drive-parallel.ts` dispatch `kind='inner-loop'→runInnerLoopJob`;`inner-loop.ts`(纯状态机)/`gates.ts`/`verdict.ts`/`prompts.ts`/`inner-loop-runner.ts`。
 - D9 已落地:实现库由 better-sqlite3 改 **node:sqlite**(BOSS 签字,见 D9 决策记录"落地修正")。
 
