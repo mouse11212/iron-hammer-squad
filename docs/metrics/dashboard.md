@@ -1,13 +1,13 @@
 # 铁锤小队 · Harness 看板
 
-> 生成于 2026-06-24T07:01:27.405Z · 四指标基线无标准值，需产线标定(V4 §7)
+> 生成于 2026-06-24T08:02:56.674Z · 四指标基线无标准值，需产线标定(V4 §7)
 
 ## harness 四指标
 
 | 指标 | 值 | 说明 |
 |---|---|---|
-| Task Resolution Rate | 100.0% | 已解决 23 / 尝试 23 |
-| Code Churn | +37753 / -7273（540 文件） | diff 代理 |
+| Task Resolution Rate | 100.0% | 已解决 24 / 尝试 24 |
+| Code Churn | +38121 / -7298（560 文件） | diff 代理 |
 | Verification Tax | 待埋点(无 done-run 指标 trailer) | 验证 —ms / 实现 —ms |
 | Defect Escape Rate | 待埋点(无缺陷记录) | 逃逸 0 / 拦截 0（均 git trailer） |
 
@@ -35,5 +35,6 @@
 | pipeline-verification-tax | harness-metrics | board.test.ts, events-tax.test.ts | 93b57cc |
 | pipeline-defect-feed | harness-metrics | board.test.ts, compute.test.ts, defects-feed.test.ts | 1a7c6c2 |
 | pipeline-persist-caught | harness-metrics/inner-loop-orchestration | board.test.ts, defects-feed.test.ts, squash-message.test.ts | ce71288 |
+| pipeline-persist-runledger | harness-metrics/inner-loop-orchestration | run-ledger.test.ts | c760af0 |
 | pipeline-persist-vtax | harness-metrics/inner-loop-orchestration | aggregate-phase-ms.test.ts, phase-ms-trailer.test.ts, squash-message.test.ts | 77e66f8 |
 | pipeline-trace-weaving | harness-metrics | weave-traces.test.ts | a3b973a |

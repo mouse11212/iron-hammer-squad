@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderBoard } from '../src/board.js';
 import { forward, reverse } from '../src/trace.js';
 import type { MetricsSnapshot, TraceLink } from '../src/types.js';
+import type { HistoryRecord } from '../src/report-history.js';
 
 const traces: TraceLink[] = [
   { changeId: 'm0', spec: 'news-fetch', tests: ['parse.test.ts'], commit: 'adbac4a' },
@@ -49,6 +50,28 @@ describe('看板渲染(纯函数)', () => {
   });
   it('无 inner-loop 数据时不渲染该区块', () => {
     expect(renderBoard(snap)).not.toContain('inner-loop');
+  });
+  it('传入 history → 渲染「指标趋势」区,只取最近 10 条', () => {
+    const hist: HistoryRecord[] = Array.from({ length: 12 }, (_, i) => ({
+      generatedAt: `2026-06-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+      taskResolutionRate: 1,
+      verificationTax: null,
+      defectEscapeRate: 0.25,
+      codeChurnTotal: 100 + i,
+      resolved: i,
+      attempted: i,
+    }));
+    const md = renderBoard(snap, hist);
+    expect(md).toContain('指标趋势（最近 10 次归档）');
+    // 只渲末 10 条:首条 2026-06-01/02 被截掉,2026-06-03 起
+    expect(md).not.toContain('2026-06-01T00:00:00Z');
+    expect(md).not.toContain('2026-06-02T00:00:00Z');
+    expect(md).toContain('2026-06-03T00:00:00Z');
+    expect(md).toContain('2026-06-12T00:00:00Z');
+  });
+  it('不传 / 传空 history → 无趋势区(既有调用零变化)', () => {
+    expect(renderBoard(snap)).not.toContain('指标趋势');
+    expect(renderBoard(snap, [])).not.toContain('指标趋势');
   });
   it('无 taxByTrace 数据时不渲染「按 US」区块', () => {
     expect(renderBoard(snap)).not.toContain('按 US');
