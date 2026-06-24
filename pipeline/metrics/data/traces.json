@@ -1,7 +1,160 @@
 [
-  { "changeId": "fincards-m0-bloomberg-cards", "spec": "news-fetch/parse/filter-today/card-render", "tests": ["parse.test.ts", "filterToday.test.ts", "render.test.ts"], "commit": "adbac4a" },
-  { "changeId": "fincards-m1-mutation-gate", "spec": "mutation-gate", "tests": ["stryker mutation"], "commit": "1504b19" },
-  { "changeId": "fincards-m2a-multisource-aggregate", "spec": "news-aggregate", "tests": ["aggregate.test.ts"], "commit": "8606f79" },
-  { "changeId": "fincards-m2-crosspublisher", "spec": "news-parse (MODIFIED, 按源归属)", "tests": ["parse.test.ts (归源)"], "commit": "393d7c4" },
-  { "changeId": "pipeline-m3-event-driver", "spec": "event-driver", "tests": ["state.test.ts", "run-once.test.ts"], "commit": "7d30216" }
+  {
+    "changeId": "fincards-m0-bloomberg-cards",
+    "spec": "news-card-render/news-fetch/news-filter-today/news-parse",
+    "tests": [],
+    "commit": "eac24ab"
+  },
+  {
+    "changeId": "fincards-m1-mutation-gate",
+    "spec": "mutation-gate",
+    "tests": [],
+    "commit": "8e4cf7a"
+  },
+  {
+    "changeId": "fincards-m2-crosspublisher",
+    "spec": "news-parse",
+    "tests": [
+      "parse.test.ts"
+    ],
+    "commit": "393d7c4"
+  },
+  {
+    "changeId": "fincards-m2a-multisource-aggregate",
+    "spec": "news-aggregate",
+    "tests": [
+      "aggregate.test.ts"
+    ],
+    "commit": "8606f79"
+  },
+  {
+    "changeId": "pipeline-m3-event-driver",
+    "spec": "event-driver",
+    "tests": [
+      "run-once.test.ts",
+      "state.test.ts"
+    ],
+    "commit": "7d30216"
+  },
+  {
+    "changeId": "pipeline-m4-metrics-trace",
+    "spec": "harness-metrics/traceability",
+    "tests": [
+      "board.test.ts",
+      "compute.test.ts"
+    ],
+    "commit": "937a078"
+  },
+  {
+    "changeId": "pipeline-driver-inner-loop",
+    "spec": "inner-loop-orchestration",
+    "tests": [
+      "gates.test.ts",
+      "inner-loop.test.ts",
+      "verdict.test.ts"
+    ],
+    "commit": "34f44aa"
+  },
+  {
+    "changeId": "pipeline-m5a-parallel-queue",
+    "spec": "concurrent-queue",
+    "tests": [
+      "drive-parallel.test.ts",
+      "mcp-server.test.ts",
+      "queue-concurrency.test.ts",
+      "queue-sqlite.test.ts"
+    ],
+    "commit": "7f1711e"
+  },
+  {
+    "changeId": "pipeline-batch-integration",
+    "spec": "worktree-integration",
+    "tests": [
+      "batch-integration.test.ts",
+      "isolated.test.ts"
+    ],
+    "commit": "0db4fa4"
+  },
+  {
+    "changeId": "pipeline-cross-batch-accum",
+    "spec": "worktree-integration",
+    "tests": [
+      "batch-integration.test.ts"
+    ],
+    "commit": "82b8023"
+  },
+  {
+    "changeId": "pipeline-daemon-batch",
+    "spec": "worktree-integration",
+    "tests": [
+      "batch-drain.test.ts",
+      "daemon.test.ts",
+      "isolated.test.ts"
+    ],
+    "commit": "ce03844"
+  },
+  {
+    "changeId": "pipeline-hitl-handoff",
+    "spec": "worktree-integration",
+    "tests": [
+      "batch-drain.test.ts",
+      "handoff.test.ts"
+    ],
+    "commit": "6da705d"
+  },
+  {
+    "changeId": "pipeline-m5b-worktree-integration",
+    "spec": "worktree-integration",
+    "tests": [
+      "isolated.test.ts",
+      "worktree.test.ts"
+    ],
+    "commit": "2b98295"
+  },
+  {
+    "changeId": "pipeline-multiproject-batch",
+    "spec": "worktree-integration",
+    "tests": [
+      "batch-drain.test.ts",
+      "batch-integration.test.ts"
+    ],
+    "commit": "206d9d0"
+  },
+  {
+    "changeId": "pipeline-transient-retry",
+    "spec": "inner-loop-orchestration",
+    "tests": [
+      "inner-loop-runner.test.ts",
+      "phase-invoke.test.ts"
+    ],
+    "commit": "d3b5181"
+  },
+  {
+    "changeId": "pipeline-dynamic-squash-orchestrator-fix",
+    "spec": "inner-loop-orchestration/worktree-integration",
+    "tests": [
+      "gates.test.ts"
+    ],
+    "commit": "e9dc6fc"
+  },
+  {
+    "changeId": "pipeline-unified-event-log",
+    "spec": "observability-events",
+    "tests": [
+      "events-integration.test.ts",
+      "events.test.ts",
+      "instrument.test.ts",
+      "replay.test.ts"
+    ],
+    "commit": "c433e68"
+  },
+  {
+    "changeId": "pipeline-verification-tax",
+    "spec": "harness-metrics",
+    "tests": [
+      "board.test.ts",
+      "events-tax.test.ts"
+    ],
+    "commit": "93b57cc"
+  }
 ]

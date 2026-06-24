@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "gate": "npm run lint && npm run typecheck && npm run test",
-    "report": "tsx src/bin-report.ts"
+    "report": "tsx src/bin-report.ts",
+    "weave": "tsx src/bin-weave.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

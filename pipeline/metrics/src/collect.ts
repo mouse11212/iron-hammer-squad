@@ -1,9 +1,10 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { MetricsSnapshot, Numstat, DefectRecord, TraceLink, InnerLoopRunRecord, TraceTax } from './types.js';
+import type { MetricsSnapshot, Numstat, DefectRecord, InnerLoopRunRecord, TraceTax } from './types.js';
 import { taskResolutionRate, codeChurn, verificationTax, defectEscapeRate, innerLoopStats } from './compute.js';
 import { categorizeDuration, taxByTrace, readEventsJsonl } from './events-tax.js';
+import { weaveTraces, readArchivedChanges } from './weave-traces.js';
 
 /** 薄 IO：解析 git numstat 为 Numstat[]（二进制文件的 '-' 跳过）。 */
 function gitNumstat(repoRoot: string): Numstat[] {
@@ -54,7 +55,8 @@ function readInnerLoopRuns(runsDir: string): InnerLoopRunRecord[] {
 export function collect(repoRoot: string, dataDir: string, now: string): MetricsSnapshot {
   const churn = codeChurn(gitNumstat(repoRoot));
   const { resolved, attempted } = countChanges(repoRoot);
-  const traces = readJson<TraceLink[]>(join(dataDir, 'traces.json'), []);
+  // 追溯链:从 OpenSpec archive + git 自动织链(M4+ 续切片②),取代手维护 traces.json。
+  const traces = weaveTraces(readArchivedChanges(repoRoot));
   const defects = readJson<DefectRecord[]>(join(dataDir, 'defects.json'), []);
   const escaped = defects.filter((d) => d.where === 'escaped').length;
   // Verification Tax:从统一事件日志(events.jsonl)派生实现/验证耗时(M4+ 续切片,接 durationMs 钩子)。
