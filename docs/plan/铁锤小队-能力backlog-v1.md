@@ -15,7 +15,7 @@
 | **M4** | 追溯链 + 看板 + 指标采集 | M3 | §4.4、§7 | 双向追溯链带 ID 可回放；PM 看板；采集 harness 四指标（含 Verification Tax）原始数据 |
 | ✅ **M4+** | 可观测闭环（统一日志 + 追溯链自动化） | M4 | §7、§4.4、§3.1 | **已封板 2026-06-24**(地基+①–⑦)：统一事件日志 traceId 全链回放；追溯链自动织链(取代手维护 traces.json)；Verification Tax 持久(Metrics-Phase-Ms trailer)；Defect Escape 自动喂(Caught/Escaped trailer);inner-loop 统计持久(runs-ledger);report 历史归档(趋势)。详见 `M4plus-event-log-retro.md` |
 | ✅ **M5** | 并行内循环 + 消息组件 | M4 | §3.1（D9）、§9 | **已完成**：node:sqlite 原子认领队列 + N 路并行 worker + stdio MCP;worktree 隔离 + 集成分支兜底 + squash;daemon 全链。详见 `M5A-retro.md`/`M5-inner-loop-retro.md` |
-| ⬜ **M6（下一个）** | NFR 门 + 安全门 | M4 | §8、§4.7、§9军规7 | NFR 派生测试入门禁；OWASP/STRIDE + CodeQL/Dependabot 前置；敏感改动加严审批 |
+| 🚧 **M6（主体完成）** | NFR 门 + 安全门 | M4 | §8、§4.7、§9军规7 | **harness-native 主体已交付**：密钥扫描(a✅)+敏感审批(b✅)+NFR 上游✅+STRIDE 安全评审(d✅ 首切片)。**余项待外部条件**：CodeQL(需 CI)/NFR 派生门(需长程数据)/d 接 run。详见 `M6-retro.md` |
 | ⬜ **M7** | drift 监控 | M3 | §6 | ASI 类 sensor（语义相似度/共识率/工具序列一致性）滚动窗口告警；两级拓扑；EMC/ABA |
 | ⬜ **M8** | 自演进回灌（Steering Loop 自动化） | M4、M7 | §2、§5 | 失败 → 自动产出对 rules/gate 的 diff 建议，**经人类门禁**后固化；带独立回归 sensor 兜底 |
 

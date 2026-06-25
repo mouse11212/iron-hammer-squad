@@ -24,6 +24,7 @@
 | M5-A 并行队列 | ✅ 归档 | `pipeline/driver/`:node:sqlite 事务原子认领队列 + N 路并行 worker + stdio MCP;4 进程抢 500 条零双领压测 |
 | M5 inner-loop 自动编排 | ✅ 归档 | `pipeline/driver/`:driver 自动驱动多角色 PEV(测试→开发→评审),阶段间确定性 gate,must-fix **热上下文 `--resume` 回修闭环**+止损+域归属,全程 trace。变异门 93.31%。**两个端到端实证**:① `relativeTime` 243s/done/fixRounds=0;② `canonicalizeUrl` 856s/done/**fixRounds=1**——真实 must-fix(评审抓 valueless 参数缺口+豁免等价变异)→ **resume 同一 session 回修**(session_id 一致)→ 收敛;fincards gate 100 绿。**回修闭环已真实坐实** |
 | **M4+ 可观测闭环** | ✅ **封板**(2026-06-24) | `pipeline/metrics`+`driver`:统一事件日志(traceId 全链回放)+ 地基切片①–⑦。四指标(Task Resolution/Churn/Verification Tax/Defect Escape)+ 追溯链 + inner-loop 统计 + 指标趋势**全部真实派生且持久**(trailer/ledger/history;前者 git-可复现,后两者持久)。口径自洽、缺数据诚实回落 null/省略。**全部明细见 `docs/plan/M4plus-event-log-retro.md`(地基+①–⑦)** |
+| **M6 NFR 门 + 安全门** | 🚧 **主体完成**(2026-06-25) | 安全门谱系:M6-a 密钥扫描(green 门)+ M6-b 敏感改动审批(held 人签)+ M6-d STRIDE 安全评审(非确定 findings+确定动作,真 claude e2e)+ NFR 上游基线(方向占全/阈值待长程标定)。每切片"不影响已实现功能"三重保证。**余项待外部条件**:CodeQL(需 CI)、NFR 派生门(需长程数据)、d 接 run。复盘 `docs/plan/M6-retro.md` |
 
 - **抽取线 E0–E5(部分) 已完成**(方案 A 边验证边抽取,产物可持续修正):`pipeline/` 现有 roles/gates/guides/workflows + driver(①,含 M5-A 并发队列/并行驱动/MCP)+ metrics(②)。
 - **产品 fincards** 在 `iron-hammer-output/fincards/`:真四源聚合,TDD + 变异门 100%。
@@ -99,7 +100,7 @@ D1 HITL 签字全 BOSS · D3 内循环不强制重置(评估记录) · D4 事件
 - 北极星 PRD:`docs/requirements/铁锤小队-PRD-v1.md`
 - NFR 基线(引擎层,M6 上游):`docs/requirements/铁锤小队-NFR-baseline-v1.md`
 - 路线/抽取线:`docs/plan/铁锤小队-能力backlog-v1.md`
-- 各里程碑复盘:`docs/plan/{M0-retro-baseline,M1-retro,M2A-retro,M2-crosspublisher-retro,M3-E3-retro,M4-E4-retro,M5A-retro,M5-inner-loop-retro}.md`
+- 各里程碑复盘:`docs/plan/{M0-retro-baseline,M1-retro,M2A-retro,M2-crosspublisher-retro,M3-E3-retro,M4-E4-retro,M5A-retro,M5-inner-loop-retro,M4plus-event-log-retro,M6-retro}.md`(M6 切片细节另见 `M6-secret-scan-retro.md`)
 - inner-loop 设计:`docs/plan/2026-06-18-driver-inner-loop-orchestration-design.md`(brainstorm 决议 + spike + 架构)
 - 关键决策:`docs/plan/D9-message-component-decision.md`
 - 最终产物:`pipeline/README.md`(roles/gates/guides/workflows/driver/metrics)
