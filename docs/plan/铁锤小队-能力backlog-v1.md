@@ -54,11 +54,13 @@
 | **M6-a 密钥扫描门** | 确定性扫改动 diff 找硬编码密钥(`ghp_`/AWS/PEM/通用赋值)→ green 红阻断;内联 `// allowlist-secret: 理由` 豁免 | harness-native、offline、失败驱动(真实 PAT 泄露) | **1 ✅ 已交付** |
 | **M6-b 敏感改动加严审批** | 分类 diff 触及敏感面(鉴权/CI/基础设施;**依赖清单不列**——机器可判)→ held(sensitive)路由人签(红线7/军规7/D1) | harness-native、复用 held/handoff | **2 ✅ 已交付** |
 | M6-c NFR 派生测试门 | 从 NFR/SLO 规约派生测试入门禁 | NFR 上游 ✅ 已补(`NFR-baseline-v1.md`);**待标定维度需长程测试数据** | 3（部分解依赖） |
-| M6-d OWASP/STRIDE 安全 agent | 威胁建模 agent role(gstack /cso)合并前跑 | agent-driven、方法论 | 4 |
+| **M6-d OWASP/STRIDE 安全 agent** | 威胁建模 agent role 合并前跑;非确定 findings + 确定动作映射(高危→人签、低危→advisory) | agent-driven、方法论 | **4 ✅ 首切片(契约+角色+映射)** |
 | M6-e CodeQL/Dependabot | 供应链/静态安全扫描前置 | **需 CI/云**(与本地非云常驻 D9 张力) | 末/可选 |
 
 - **M6-a 已完成**(change `pipeline-secret-scan-gate`)：`driver/secret-scan.ts` 纯 `scanSecrets` + 薄 `secretScanGate`;向后兼容注入进 green 门(不注入零变化,真实装配启用);**不影响已实现功能**实证(fincards 全量零误报、既有 222 测试零改动通过)。详见 `docs/plan/M6-secret-scan-retro.md`。
 - **M6-b 已完成**(change `pipeline-sensitive-change-gate`)：`driver/sensitive-change.ts` 纯 `classifySensitive`(鉴权/CI/基础设施路径分类);`batchIntegrate` 可选注入敏感检查 → 命中 held(`reason:'sensitive'`+categories)路由人签,不自动合(复用 held/handoff,红线7/D1);**依赖清单不列敏感**(用户裁定)。向后兼容(不注入零变化),既有 232 测试零改动通过;真 git e2e:`.github/` 改动→held(sensitive,ci)、普通 src→merged、main 不动。详见 `M6-secret-scan-retro.md` 续记。
+- **NFR 上游 ✅ 已补**(`docs/requirements/铁锤小队-NFR-baseline-v1.md`)：harness 引擎层 8 维 NFR 基线(方向占全、阈值不臆造、性能/成本/长程可靠性待长程标定);M6-c 部分解依赖。
+- **M6-d 已完成首切片**(change `pipeline-security-review-agent`)：`roles/security-review-agent.md`(STRIDE 6 + OWASP 自包含)+ `driver/security-findings.ts` 纯 `parseSecurityFindings`(仿 verdict 严格校验)+ `mapFindingsToAction`(确定性:高危→escalate 人签、低危→advise)。**非确定 findings + 确定动作映射**——LLM 不单独硬阻断(漏报风险),高危人在环(红线7),与 M6-a/b 确定门互补。既有 240 测试零影响(249);**真 claude e2e**:含 SQL/命令注入样本→5 STRIDE findings→契约接受→escalate(2 high)。**首切片不接 inner-loop 每轮**(可调用,留后续按长程验证)。
 
 **纪律提醒**：安全门同样从窄到宽——先 harness-native 确定性门(密钥/敏感面),CodeQL/Dependabot 等需 CI 的留末位;**命中=阻断,豁免须带理由(不弱化门)**。
 

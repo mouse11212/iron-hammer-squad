@@ -48,7 +48,22 @@
 - **真 git e2e**:一批 `.github/workflows/deploy.yml`(敏感 ci)+ `src/feature.ts`(普通)→ 前者 held(sensitive,[ci])、后者 merged、main 不动、handoff 渲染类别+"需人类签字后手动合"。driver gate 240 全绿。
 - **不影响已实现功能**:普通 src 交付照常合(fincards 风格不受影响),只有触及敏感面才 held。
 
+## 续:NFR 上游补齐（`NFR-baseline-v1.md`）
+
+M6-c 的上游。harness 引擎层 8 维 NFR 基线:**方向占全 + 阈值不臆造**——可观测/安全/并发/可移植已达标(既有门满足)、可维护保守基线(变异门 break90)、**可靠/性能/成本待长程标定**(当前未做长程任务测试,SLO 留长程数据后回填,红线1,同 M4+「待埋点」哲学)。usability/合规/可伸缩刻意排除(YAGNI)。回填 V4 §8/§266 指针。
+
+## 续:M6-d 安全评审 agent 首切片（change `pipeline-security-review-agent`）
+
+确定性规则(M6-a/b)覆盖不到语义级威胁(注入/越权/失败副作用…)→ STRIDE/OWASP 方法论 LLM 评审补上。
+
+- **核心洞察:非确定 findings + 确定动作映射**。LLM agent 非确定,本项目纪律是确定性优先——所以 agent **不单独当硬合并门**(漏报风险:不能信非确定 agent 没漏掉漏洞就放行)。架构:agent 产**结构化 findings**(像 review 产 verdict),纯 `mapFindingsToAction` 按严重度**确定性**决定动作(有 high→escalate 人签/复用 M6-b held、低危→advisory)。**动作确定即便 findings 来自 LLM**——这是把不可靠 agent 纳入可靠 harness 的通用模式(同 review→verdict→mustFix)。
+- **与 M6-a/b 互补不替代**:确定性门(密钥/敏感路径)是可靠骨架;LLM 安全评审补语义级、靠人在环兜底高危。漏报靠"高危人签 + 不单独硬门 + 确定门互补"缓解。
+- **可 TDD 的是 parser+mapper**(像 verdict.ts),LLM 部分靠真跑烟测——非确定逻辑包在纯函数边界外。
+- **真 claude e2e(DoD)**:含 SQL 注入 + 命令注入的样本 diff → 真安全 agent 产 **5 条 STRIDE findings**(tampering/elevation high + info-disclosure/path-traversal medium + repudiation low)→ `parseSecurityFindings` 接受 → `mapFindingsToAction` escalate=true(2 high)。契约端到端用真 LLM 验证,非模拟。
+- **角色 .md 自包含**:STRIDE 6 + OWASP 检查清单内嵌,不依赖 gstack 必须加载(/cso 作可选);严重度克制(high 仅给确有可利用路径,勿滥用升级)。
+- **首切片可调用,不接 inner-loop 每轮**(贵/非确定,留后续按长程验证是否常态化)。既有 240 测试零影响(249)。
+
 ## M6 后续候选
 
-- **M6-c NFR 派生测试门**（需 NFR 上游,§8 标"待完善 SLO 值"）→ M6-d OWASP/STRIDE 安全 agent → M6-e CodeQL/Dependabot（需 CI）。
-- 零头：metrics 包级 stryker 变异门；secret-scan 漏报格式 / 敏感面类别按真实失败追加（红线3 从窄到宽，不追求一次全覆盖）；敏感面 override/allowlist。
+- **M6-c NFR 派生测试门**(NFR 上游已补;已达标/保守维度可做如补 metrics 包级变异门,待标定维度等长程数据)→ M6-e CodeQL/Dependabot(需 CI)→ M6-d 接进 run(按长程验证)。
+- 零头：metrics 包级 stryker 变异门；secret-scan 漏报格式 / 敏感面类别 / 安全 findings category 按真实失败追加（红线3 从窄到宽）；敏感面 override/allowlist。

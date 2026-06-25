@@ -35,6 +35,7 @@ pipeline/
 │       ├── {verdict,gates,prompts}.ts  # M5 评审解析 / 确定性 gate(变异门按 git diff 动态范围)/ 角色 prompt
 │       ├── secret-scan.ts        # M6-a 安全门:密钥扫描(scanSecrets 纯检测 + secretScanGate;green 可选注入)
 │       ├── sensitive-change.ts   # M6-b 安全门:敏感改动分类(classifySensitive;batchIntegrate held:sensitive 路由人签)
+│       ├── security-findings.ts  # M6-d 安全门:安全评审 findings 解析 + 确定性动作映射(非确定 findings→确定动作)
 │       ├── worktree.ts         # M5-B worktree 隔离 + squash + 集成分支兜底(军规 3/8;绝不写 main)
 │       └── inner-loop-runner.ts # M5 真实装配 + M5-B runIsolated(worktree 隔离编排)
 └── metrics/       # ② 可观测(M4/E4)：harness 四指标 + 追溯链 + 看板
@@ -61,7 +62,11 @@ npm run report:archive -- <repoRoot>  # opt-in:把当前指标快照追加进 do
 
 **密钥扫描门(M6-a,M6 首切片)**:`driver/secret-scan.ts` 纯 `scanSecrets`(高精度模式:`ghp_`/`github_pat_`/AWS `AKIA`/PEM 私钥块/通用 `key|secret|token|password = "…"`)+ 薄 `secretScanGate`(扫**本次改动 diff**)。**向后兼容注入** green 门(`makeGates` 可选 `secretScan`;不注入零变化,真实装配启用)——命中即 green 红 → dev 回修移除(像 lint,不升级人类)。内联 `// allowlist-secret: <理由>` 豁免(须带理由,不弱化门)。**失败驱动**(真实 PAT 泄露)。**不影响已实现功能**实证:fincards 全量零误报 + 既有 222 driver 测试零改动通过。
 
-**敏感改动加严审批(M6-b)**:`driver/sensitive-change.ts` 纯 `classifySensitive`(路径分类:**鉴权**`auth/login/oauth/credential/session`、**CI**`.github/`/`*.ci.yml`/`Jenkinsfile`、**基础设施**`Dockerfile`/`*.tf`/`k8s/`/`deploy/`;依赖清单不列——机器可判)。`batchIntegrate` 可选注入敏感检查 → 命中 → **held(`reason:'sensitive'`+类别)路由人签,不自动合**(复用 held/handoff,红线7/军规7/D1);工作保留为 feature 分支,人签后手动合。与 M6-a 区别:M6-a=must-fix(agent 移除密钥),M6-b=escalate-hold(改动合法但需人签)。向后兼容(不注入零变化);真 git e2e:`.github/` 改动→held(sensitive,ci)、普通 src→merged、main 不动。M6 拆解(a 密钥 ✅/b 敏感面 ✅/c NFR 门/d OWASP agent/e CodeQL)见 backlog。
+**敏感改动加严审批(M6-b)**:`driver/sensitive-change.ts` 纯 `classifySensitive`(路径分类:**鉴权**`auth/login/oauth/credential/session`、**CI**`.github/`/`*.ci.yml`/`Jenkinsfile`、**基础设施**`Dockerfile`/`*.tf`/`k8s/`/`deploy/`;依赖清单不列——机器可判)。`batchIntegrate` 可选注入敏感检查 → 命中 → **held(`reason:'sensitive'`+类别)路由人签,不自动合**(复用 held/handoff,红线7/军规7/D1);工作保留为 feature 分支,人签后手动合。与 M6-a 区别:M6-a=must-fix(agent 移除密钥),M6-b=escalate-hold(改动合法但需人签)。向后兼容(不注入零变化);真 git e2e:`.github/` 改动→held(sensitive,ci)、普通 src→merged、main 不动。
+
+**安全评审 agent(M6-d 首切片)**:`roles/security-review-agent.md`(STRIDE 6 类 + OWASP 检查,offline 自包含)合并前评审,产**结构化 findings**;`driver/security-findings.ts` 纯 `parseSecurityFindings`(仿 verdict 严格校验)+ `mapFindingsToAction`(**确定性**:有 high→escalate 人签/复用 held、medium/low→advisory)。**关键**:LLM findings 非确定 → 动作映射确定;**agent 不单独硬阻断**(漏报风险),高危人在环(红线7),与 M6-a/b 确定门**互补**。真 claude e2e:SQL/命令注入样本→5 STRIDE findings→契约接受→escalate(2 high)。首切片**可调用、不接 inner-loop 每轮**(留后续按长程验证)。
+
+M6 拆解(a 密钥 ✅/b 敏感面 ✅/NFR 上游 ✅/c NFR 门/d 安全 agent ✅/e CodeQL 需 CI)见 backlog。
 
 ## driver/ 用法（① Loop 引擎）
 
