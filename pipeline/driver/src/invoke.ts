@@ -28,6 +28,8 @@ export interface PhaseMeta {
   isError: boolean;
   result: string;
   costUsd?: number;
+  /** stream 缺失 type:result 收尾事件(进程崩溃前未收尾)→ true。供重试层区分基建崩溃 vs 真失败。 */
+  noResult?: boolean;
 }
 
 /** 纯解析:扫描 stream-json 行,取最后一个 type:result 事件的元数据;无 result 视为出错。 */
@@ -46,12 +48,13 @@ export function parsePhaseResult(lines: string[]): PhaseMeta {
       found = ev as Record<string, unknown>;
     }
   }
-  if (!found) return { isError: true, result: '' };
+  if (!found) return { isError: true, result: '', noResult: true };
   return {
     sessionId: typeof found.session_id === 'string' ? found.session_id : undefined,
     isError: found.is_error === true,
     result: typeof found.result === 'string' ? found.result : '',
     costUsd: typeof found.total_cost_usd === 'number' ? found.total_cost_usd : undefined,
+    noResult: false,
   };
 }
 

@@ -72,6 +72,16 @@ describe('parsePhaseResult（从 stream-json 行提元数据）', () => {
     expect(parsePhaseResult(['{"type":"system"}']).isError).toBe(true);
   });
 
+  it('无 result 事件 → noResult=true(进程崩溃前未收尾)', () => {
+    const m = parsePhaseResult(['{"type":"system","subtype":"api_retry"}', '{"type":"assistant"}']);
+    expect(m.noResult).toBe(true);
+    expect(m.isError).toBe(true);
+  });
+
+  it('有 result 事件 → noResult=false', () => {
+    expect(parsePhaseResult([resultLine]).noResult).toBe(false);
+  });
+
   it('忽略非 JSON 行,不抛错', () => {
     const m = parsePhaseResult(['', 'not json', resultLine]);
     expect(m.sessionId).toBe('sess-9');

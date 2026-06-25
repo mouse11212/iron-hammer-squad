@@ -73,7 +73,9 @@ export function makeRunPhase(deps: RunPhaseDeps): (input: PhaseInput) => Promise
       lastSessionId = deps.genId();
       let r = await deps.phaseInvoke({ prompt, sessionId: lastSessionId, resume: false, onTraceLine });
       let n = 0;
-      while (r.isError && isTransient(r.result) && n < maxRetries) {
+      // 可重试 = 模型发出含瞬时信号的 result(isTransient) 或 进程崩溃前未发 result(noResult,基建崩溃)。
+      // 有 result 但 is_error 且文本无瞬时信号(模型/代码真失败)不在此列——不盲目重试烧钱。
+      while (r.isError && (isTransient(r.result) || r.noResult === true) && n < maxRetries) {
         n++;
         await sleep(500 * n); // 线性退避
         lastSessionId = deps.genId();
