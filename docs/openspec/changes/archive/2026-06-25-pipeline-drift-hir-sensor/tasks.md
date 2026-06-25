@@ -11,4 +11,4 @@
 
 ## 3. 收尾
 - [x] 3.1 `openspec validate --strict` 通过。
-- [ ] 3.2 复盘 `docs/plan/M7-hir-retro.md` + 更新 backlog（M7-b ✅）+ RESUME 指针。
+- [x] 3.2 复盘 `docs/plan/M7-hir-retro.md` + 更新 backlog（M7-b ✅）+ RESUME 指针。
