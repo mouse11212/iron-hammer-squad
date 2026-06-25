@@ -53,7 +53,7 @@
 |---|---|---|---|
 | **M6-a 密钥扫描门** | 确定性扫改动 diff 找硬编码密钥(`ghp_`/AWS/PEM/通用赋值)→ green 红阻断;内联 `// allowlist-secret: 理由` 豁免 | harness-native、offline、失败驱动(真实 PAT 泄露) | **1 ✅ 已交付** |
 | **M6-b 敏感改动加严审批** | 分类 diff 触及敏感面(鉴权/CI/基础设施;**依赖清单不列**——机器可判)→ held(sensitive)路由人签(红线7/军规7/D1) | harness-native、复用 held/handoff | **2 ✅ 已交付** |
-| M6-c NFR 派生测试门 | 从 NFR/SLO 规约派生测试入门禁 | **需 NFR 上游**(§8 标"待完善 SLO 值") | 3 |
+| M6-c NFR 派生测试门 | 从 NFR/SLO 规约派生测试入门禁 | NFR 上游 ✅ 已补(`NFR-baseline-v1.md`);**待标定维度需长程测试数据** | 3（部分解依赖） |
 | M6-d OWASP/STRIDE 安全 agent | 威胁建模 agent role(gstack /cso)合并前跑 | agent-driven、方法论 | 4 |
 | M6-e CodeQL/Dependabot | 供应链/静态安全扫描前置 | **需 CI/云**(与本地非云常驻 D9 张力) | 末/可选 |
 

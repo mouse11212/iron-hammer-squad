@@ -89,6 +89,7 @@
 
 - 架构宪法（构思 v4）：`docs/requirements/铁锤小队-Harness工程构思-v4.md`（历史 v3 同目录）
 - 北极星 PRD：`docs/requirements/铁锤小队-PRD-v1.md`
+- NFR 基线（引擎层，M6 上游）：`docs/requirements/铁锤小队-NFR-baseline-v1.md`
 - 能力 backlog：`docs/plan/铁锤小队-能力backlog-v1.md`
 - 离线工具清单：`tools/TOOLS.md`
 - 知识库关键页：`KB_ROOT/wiki/topics/{harness-engineering, pev-loop, guides-and-sensors, loop-engineering, agent-drift}.md`、`KB_ROOT/wiki/questions/{how-to-build-high-quality-harness, agentic-harness-hardcore-problems}.md`

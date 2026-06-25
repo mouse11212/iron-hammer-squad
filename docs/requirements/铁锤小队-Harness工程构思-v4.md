@@ -216,6 +216,7 @@ harness 一切控制归两类，**缺一不可**（KB: topics/guides-and-sensors
 - **定义**：Non-Functional Requirements（质量属性 / "-ilities"）——性能、可伸缩、可用、可靠、安全、可维护、usability、可观测、可移植、合规等；描述"做得多好"。
 - **归属**：**需求分析阶段**识别、**架构设计阶段**细化；是核心架构驱动力（吞吐/时延 SLO 决定技术选型）。**不是项目初始化动作。**
 - **两条硬要求**：(a) NFR 必须**派生自己的测试用例**（性能/负载/安全/a11y）并进入门禁；(b) NFR 是横切、持续验证项，非一次性。
+- **harness 引擎层 NFR 基线**（上游 SoT）：见 `docs/requirements/铁锤小队-NFR-baseline-v1.md`——8 维（可观测/安全/并发/可移植已达标，可维护保守基线，可靠/性能/成本**待长程标定**）。**当前未做长程任务测试**，性能/成本/长程可靠性 SLO 一律标"待长程标定"不臆造（红线1）；M6-c 从该基线挑已标定维度派生门。
 
 ---
 
@@ -263,7 +264,7 @@ harness 一切控制归两类，**缺一不可**（KB: topics/guides-and-sensors
 - **需求澄清**：产品概念、目标用户画像、核心痛点、业务场景、范围(含 out-of-scope)写入规约 proposal，**且经规格歧义/可验证性检查**（见 §12），经人类确认。[待完善：确认人]
 - **UI/UX 风格设计**：风格规约 + 关键界面方向产出，通过设计级校验（风格一致、a11y 基线、视觉回归基线），与产品概念对账一致。[待完善：a11y 等级]
 - **详细需求(SDD)**：specs 覆盖全部 FR + NFR，`openspec validate --strict` 通过，GIVEN/WHEN/THEN 无缺口。
-- **架构 & NFR**：技术选型 + 系统/产品架构 + NFR(带量化 SLO)写入 design.md，经架构锁定门禁。[待完善：SLO 值]
+- **架构 & NFR**：技术选型 + 系统/产品架构 + NFR(带量化 SLO)写入 design.md，经架构锁定门禁。引擎层 NFR 基线见 `docs/requirements/铁锤小队-NFR-baseline-v1.md`(方向已占全;性能/成本/长程可靠性 SLO 待长程任务测试后标定,不臆造)。
 - **项目初始化(Bootstrap)**：仓库骨架、CI/CD、devcontainer、基线测试 harness、CLAUDE.md/AGENTS.md(含 Always/Ask-First/Never)、规约结构就位；基线流水线绿。
 - **PM 机制**：迭代/需求/任务/bug 看板建立，追溯链 ID 体系就位，可记录与回放。
 - **US 拆分**：每个 US 可独立交付、可测、可追溯回 spec，带验收标准。**大小上界硬约束（D8 推论）：US 必须小到能"短命快合"——即一条 worktree 分支能在几小时到几天内完成并合回（§9 军规 4 Trunk-Based）。** 拆不到这个粒度的 US 必须继续拆分；超界的 US 视为未通过本 DoD，不得进入内循环。
