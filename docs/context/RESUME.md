@@ -33,6 +33,11 @@
 
 ## 3. 下一步（立即可做）
 
+> 🔴 **当前活跃任务（2026-06-25 起，最高优先）= 词灵岛 长程任务验证**——工程的**首个真实长程任务测试**（解锁 NFR 标定 + M7 drift 真信号）。用铁锤小队开发「词灵岛」3–6 年级小学英语 web 游戏，**我=BOSS+③Compound 观察者**，监控内/外循环质量 + 架构符合度，问题记台账、固化成对 harness 的 diff。
+> **续接真相源 = `docs/plan/词灵岛-长程验证-观察日志.md`（含「🔻续接快照」：已完成/下一步/US-1 规约/驱动配方 verbatim/地雷）。升级后先读它。**
+> 状态速览：教材 KB 8 册✅ + 观察日志✅ + driver 手册✅ + wordspirit 骨架✅ + **US-1 听音选词判分 done✅**(fixRounds=1,$4.036,变异门 93.33%→100%,gate 26 测试绿;产物 untracked 待 commit)。**首个真 harness 缺口已修**：issue #5 transient-retry 盲区(进程崩溃无 result 不重试)→ change `pipeline-phase-crash-retry`(noResult 也重试,TDD+全门禁绿,待归档)。**中断点：US-1 done,正要驱动 US-2 金币连对加成**(US-2..5=连对加成/年级过滤/番茄钟状态机/星级评定,见观察日志+scratchpad 接地简报)。三份输入：PRD/原型/教材 KB(本轮用户指示**三份全用**)。真信号:HIR 0/2,ledger 2 真行。
+>
+> ---
 > ✅ **M4+ 已封板**(2026-06-24;见 §2 表 + `docs/plan/M4plus-event-log-retro.md` 地基+①–⑦)。**M0–M5 + M4+ 全部完成**。
 > 🚧 **M5+ 进行中**。**M6（NFR 门+安全门）主体完成**(a 密钥/b 敏感面/d STRIDE 安全评审/NFR 上游 ✅;余 CodeQL 需 CI、NFR 派生门需长程数据;复盘 `M6-retro.md`)。**M7（drift 监控,项目根命题)已启动**:
 >   - ✅ **M7-a 工具序列一致性 sensor 完成**(change `pipeline-drift-toolseq-sensor`,新 capability `drift-monitor`)。KB 接地(`[[agent-drift]]`/arXiv:2601.04170,ASI 12 维框架/τ=0.75 连续三窗)。`metrics/drift-sensor.ts` 纯 `opSequence`(events.jsonl 按 ts 取 op token 序列)/`levenshtein`/`seqConsistency`([0,1])/`driftAlert`(连续 k 个<τ 告警)+ 薄 `readDriftEvents`/`computeDrift`(按 US 分组→相对基线一致性序列→告警)——**最可确定性/离线/已可从 events 算的 drift 信号**(语义需 embedding、共识需多 agent,排后)。metrics gate 全绿(71,58→71 +13,既有零影响)。**诚实路径(同 NFR)**:未做长程任务测试→真实 events.jsonl 空→`insufficient-data` 不告警**不臆造已发生 drift**;合成渐变漂移序列单测证连续三窗<τ 正确告警、稳定不告警;τ=0.75/k=3 用 KB 默认待标定。**首切片建机制,真 drift 信号待长程**。拆解 M7-a..g 见 backlog「明确待办 · M7」。

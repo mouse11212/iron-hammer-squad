@@ -87,4 +87,34 @@ describe('makeRunPhase 瞬时错误重试(②harness 硬化)', () => {
     expect(out.exitCode).toBe(1);
     expect(phaseInvoke).toHaveBeenCalledTimes(3); // 1 + 2 重试
   });
+
+  it('进程崩溃无 result(noResult,空文本)→ 也重试,且换 fresh session-id', async () => {
+    // 复刻词灵岛 US-1 真实假失败:dev 进程 API 重试中途崩、无 type:result 收尾。
+    const phaseInvoke = vi
+      .fn<(i: unknown) => Promise<PhaseInvokeResult>>()
+      .mockResolvedValueOnce({ exitCode: 1, isError: true, result: '', noResult: true })
+      .mockResolvedValueOnce({ exitCode: 0, isError: false, result: '', sessionId: 'recovered' });
+    const sleep = vi.fn(async () => {});
+    const out = await makeRunPhase(deps({ phaseInvoke, genId: counterId(), sleep, maxRetries: 2 }))({ role: 'dev' });
+    expect(out.exitCode).toBe(0);
+    expect(phaseInvoke).toHaveBeenCalledTimes(2);
+    const id1 = (phaseInvoke.mock.calls[0]![0] as { sessionId: string }).sessionId;
+    const id2 = (phaseInvoke.mock.calls[1]![0] as { sessionId: string }).sessionId;
+    expect(id1).not.toBe(id2);
+    expect(sleep).toHaveBeenCalled();
+  });
+
+  it('进程崩溃持续无 result → 耗尽上限失败,不无限重试', async () => {
+    const phaseInvoke = vi.fn(async (): Promise<PhaseInvokeResult> => ({ exitCode: 1, isError: true, result: '', noResult: true }));
+    const out = await makeRunPhase(deps({ phaseInvoke, genId: counterId(), sleep: vi.fn(async () => {}), maxRetries: 2 }))({ role: 'dev' });
+    expect(out.exitCode).toBe(1);
+    expect(phaseInvoke).toHaveBeenCalledTimes(3); // 1 + 2 重试
+  });
+
+  it('真失败(有 result 文本、无瞬时信号、noResult 未置)→ 仍不重试(安全边界)', async () => {
+    const phaseInvoke = vi.fn(async (): Promise<PhaseInvokeResult> => ({ exitCode: 1, isError: true, result: 'TypeError: x is not a function' }));
+    const out = await makeRunPhase(deps({ phaseInvoke, sleep: vi.fn(async () => {}), maxRetries: 2 }))({ role: 'dev' });
+    expect(out.exitCode).toBe(1);
+    expect(phaseInvoke).toHaveBeenCalledTimes(1);
+  });
 });
