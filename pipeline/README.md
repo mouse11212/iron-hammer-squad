@@ -68,6 +68,10 @@ npm run report:archive -- <repoRoot>  # opt-in:把当前指标快照追加进 do
 
 M6 拆解(a 密钥 ✅/b 敏感面 ✅/NFR 上游 ✅/c NFR 门/d 安全 agent ✅/e CodeQL 需 CI)见 backlog。
 
+## drift 监控（M7 · 对抗 agent drift 的根命题）
+
+**工具序列一致性 sensor(M7-a,M7 首切片)**:KB 接地(`[[agent-drift]]`/arXiv:2601.04170 ASI 框架)。`metrics/drift-sensor.ts` 纯 `opSequence`(events.jsonl 按 ts 取 op token 序列)+ `levenshtein`/`seqConsistency`([0,1])+ `driftAlert`(连续 k 个一致性<τ 告警,KB「τ=0.75 连续三窗」)+ 薄 `readDriftEvents`/`computeDrift`(按 US 分组→相对基线一致性序列→告警)。**最可确定性/离线/已可从 events 算的 drift 信号**(语义需 embedding、共识需多 agent,排后)。**诚实路径(同 NFR)**:未做长程任务测试→无 drift 数据→`insufficient-data` 不告警,**不臆造已发生 drift**;τ/k 用 KB 默认待标定;合成渐变漂移序列单测证机制正确。M7 拆解(a 工具序列 ✅/b 人工干预率/c 语义/d 共识/e 复合 ASI/f EMC·ABA·DAR/g 两级拓扑)见 backlog。
+
 ## driver/ 用法（① Loop 引擎）
 
 ```bash

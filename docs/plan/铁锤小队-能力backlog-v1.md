@@ -16,7 +16,7 @@
 | ✅ **M4+** | 可观测闭环（统一日志 + 追溯链自动化） | M4 | §7、§4.4、§3.1 | **已封板 2026-06-24**(地基+①–⑦)：统一事件日志 traceId 全链回放；追溯链自动织链(取代手维护 traces.json)；Verification Tax 持久(Metrics-Phase-Ms trailer)；Defect Escape 自动喂(Caught/Escaped trailer);inner-loop 统计持久(runs-ledger);report 历史归档(趋势)。详见 `M4plus-event-log-retro.md` |
 | ✅ **M5** | 并行内循环 + 消息组件 | M4 | §3.1（D9）、§9 | **已完成**：node:sqlite 原子认领队列 + N 路并行 worker + stdio MCP;worktree 隔离 + 集成分支兜底 + squash;daemon 全链。详见 `M5A-retro.md`/`M5-inner-loop-retro.md` |
 | 🚧 **M6（主体完成）** | NFR 门 + 安全门 | M4 | §8、§4.7、§9军规7 | **harness-native 主体已交付**：密钥扫描(a✅)+敏感审批(b✅)+NFR 上游✅+STRIDE 安全评审(d✅ 首切片)。**余项待外部条件**：CodeQL(需 CI)/NFR 派生门(需长程数据)/d 接 run。详见 `M6-retro.md` |
-| ⬜ **M7** | drift 监控 | M3 | §6 | ASI 类 sensor（语义相似度/共识率/工具序列一致性）滚动窗口告警；两级拓扑；EMC/ABA |
+| 🚧 **M7（启动）** | drift 监控 | M3 | §6 | ASI 类 sensor（语义相似度/共识率/工具序列一致性）滚动窗口告警；两级拓扑；EMC/ABA。**M7-a 工具序列一致性 sensor ✅**;余见「明确待办 · M7」 |
 | ⬜ **M8** | 自演进回灌（Steering Loop 自动化） | M4、M7 | §2、§5 | 失败 → 自动产出对 rules/gate 的 diff 建议，**经人类门禁**后固化；带独立回归 sensor 兜底 |
 
 > ✅ **M4+ 已封板**(2026-06-24)。M0–M5 + M4+ 全部完成；**下一主线里程碑 = M6（NFR 门 + 安全门）**。展开见下「明确待办」(M4+ 段已闭，留作历史)。
@@ -63,6 +63,25 @@
 - **M6-d 已完成首切片**(change `pipeline-security-review-agent`)：`roles/security-review-agent.md`(STRIDE 6 + OWASP 自包含)+ `driver/security-findings.ts` 纯 `parseSecurityFindings`(仿 verdict 严格校验)+ `mapFindingsToAction`(确定性:高危→escalate 人签、低危→advise)。**非确定 findings + 确定动作映射**——LLM 不单独硬阻断(漏报风险),高危人在环(红线7),与 M6-a/b 确定门互补。既有 240 测试零影响(249);**真 claude e2e**:含 SQL/命令注入样本→5 STRIDE findings→契约接受→escalate(2 high)。**首切片不接 inner-loop 每轮**(可调用,留后续按长程验证)。
 
 **纪律提醒**：安全门同样从窄到宽——先 harness-native 确定性门(密钥/敏感面),CodeQL/Dependabot 等需 CI 的留末位;**命中=阻断,豁免须带理由(不弱化门)**。
+
+## 明确待办 · M7 drift 监控（2026-06-25 立项，项目根命题）
+
+**动机**：agent drift = 单步误差长链路复利累积(整个 harness 对抗的根本,V4 §6 / D5)。KB 接地(`[[agent-drift]]`/`[[arxiv-agent-drift-2026]]` arXiv:2601.04170):drift ~200+ 交互显现(任务成功率 87.3%→50.6%);ASI 12 维复合度量(4 类加权),τ=0.75 滚动 50 窗连续三窗触发。
+
+**拆解（从窄到宽,按可确定性/离线优先）**：
+
+| 子切片 | 内容 | 可确定性/离线 | 序 |
+|---|---|---|---|
+| **M7-a 工具序列一致性 sensor** | Levenshtein on op 序列(events.jsonl)+ 滚动窗口 τ 告警框架 | 纯/离线/已可算 | **1 ✅ 已交付** |
+| M7-b 人工干预率 sensor | escalation/held 率(ledger,"终极指标") | 确定性,已有数据 | 2 |
+| M7-c 语义相似度 sensor | output embedding cosine | 需 embedding(离线难) | 3 |
+| M7-d 协调/共识 sensor | consensus rate/handoff/role adherence | 需多 agent 同任务 | 4 |
+| M7-e 复合 ASI | 12 维加权汇总 + 纳入 §7 度量 | 依赖前述 | 5 |
+| M7-f 缓解 EMC/ABA/DAR | 压缩/行为锚定/漂移 reset | 重(改编排) | 6 |
+| M7-g 两级拓扑 | router+specialists(KB 实证优于 flat/深层) | 改 §4.2 编排 | 7 |
+
+- **M7-a 已完成**(change `pipeline-drift-toolseq-sensor`)：`metrics/drift-sensor.ts` 纯 `opSequence`/`levenshtein`/`seqConsistency`/`driftAlert` + 薄 `readDriftEvents`/`computeDrift`。**诚实约束**:未做长程任务测试→无 drift 数据,sensor 机制建好真信号待长程;τ=0.75/k=3 用 KB 默认待标定;**无数据→insufficient-data 不告警,不臆造已发生 drift**(同 NFR/M4+「待埋点」)。
+- **纪律提醒**:drift sensor 同从窄到宽——先纯/离线/已可算的(工具序列/人工干预),需 embedding/多 agent 的排后;缓解(EMC/ABA/DAR)/拓扑改造留最后。**阈值用 KB 默认 + 真信号待长程,不臆造 drift**。
 
 ## 里程碑细节（仅 M0–M2，后续拿起时再展开）
 
