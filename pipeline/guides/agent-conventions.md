@@ -16,7 +16,7 @@
 ## 技术栈约定（当前 fincards / Node+TS；新栈需在此扩展）
 
 - TypeScript **strict + `noUncheckedIndexedAccess`**：索引访问后用 `!` 断言或显式判空（项目惯例 `items[0]!`）。
-- ESM + `.js` 导入后缀；测试用 vitest；纯逻辑与 IO 分层（薄 IO 边界 + 纯函数）。
+- 相对导入后缀**随栈而定**（勿跨栈套用）：**NodeNext/纯 ESM 栈**（如 fincards）相对导入带 `.js` 后缀；**Vite/bundler 栈**（`moduleResolution: bundler`，如 wordspirit）相对导入**无后缀**，应与该项目既有导入实证一致——以目标项目现有文件的写法为准，不照搬别的栈。〔验证来源：词灵岛 US-2 dev 误把 fincards 的 `.js` 后缀用到 Vite 项目，评审判 niceToHave，issue#7〕测试统一用 vitest；纯逻辑与 IO 分层（薄 IO 边界 + 纯函数）。
 - 确定性优先：需要被测试/变异覆盖的逻辑写成纯函数，把网络/时钟/随机隔离到边界（参考 fincards `fetch.ts` vs `parse.ts`）。
 
 ## 测试约定

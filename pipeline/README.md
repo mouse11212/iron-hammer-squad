@@ -19,7 +19,8 @@ pipeline/
 │   ├── product-clarify-agent.md
 │   ├── test-agent.md
 │   ├── dev-agent.md
-│   └── review-agent.md
+│   ├── review-agent.md
+│   └── ui-agent.md        # 执行模式③：纯 UI/接线（非 TDD，视觉/交互评审为门）
 ├── gates/         # ② Sensors / 质量门模板
 │   └── quality-gates.md
 ├── workflows/     # 编排剧本
