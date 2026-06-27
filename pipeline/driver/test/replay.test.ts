@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeEvent } from '../src/events.js';
-import { groupByTrace, formatReplay, readEvents } from '../src/replay.js';
+import { groupByTrace, formatReplay, readEvents, formatBeijing } from '../src/replay.js';
 
 const at = (ts: string, traceId: string, op: 'phase' | 'gate' | 'squash' | 'integrate'): ReturnType<typeof makeEvent> =>
   makeEvent({ ts, traceId, op });
@@ -24,6 +24,22 @@ describe('groupByTrace（纯:按 traceId 分组，组内按 ts 升序）', () =>
   it('同 ts 保持输入顺序(钉死相等边界:比较器须返回 0)', () => {
     const m = groupByTrace([at('t1', 'a', 'phase'), at('t1', 'a', 'gate'), at('t1', 'a', 'squash')]);
     expect(m.get('a')!.map((e) => e.op)).toEqual(['phase', 'gate', 'squash']); // 稳定
+  });
+});
+
+describe('formatBeijing（纯:UTC ISO → 北京时间显示，宽容降级）', () => {
+  it('UTC ISO → 北京时间(+8)显示', () => {
+    expect(formatBeijing('2026-06-27T14:55:58.802Z')).toBe('2026-06-27 22:55:58 +08');
+  });
+  it('跨午夜进位(UTC 16:30 +8 → 次日 00:30)', () => {
+    expect(formatBeijing('2026-06-27T16:30:00.000Z')).toBe('2026-06-28 00:30:00 +08');
+  });
+  it('个位月/日/时补零', () => {
+    expect(formatBeijing('2026-01-05T00:01:02.000Z')).toBe('2026-01-05 08:01:02 +08');
+  });
+  it('无法解析的 ts → 原样返回(宽容,不中断回放)', () => {
+    expect(formatBeijing('t1')).toBe('t1');
+    expect(formatBeijing('not-a-date')).toBe('not-a-date');
   });
 });
 
@@ -50,12 +66,12 @@ describe('formatReplay（纯:按 ts 排序渲染一个 US 的有序事件链）'
         payload: { x: 1 },
       }),
     ]);
-    expect(out).toBe('[2026-06-23T10:00:00.000Z] phase/dev ok (1000ms) {"x":1}');
+    expect(out).toBe('[2026-06-23 18:00:00 +08] phase/dev ok (1000ms) {"x":1}');
   });
 
   it('最小事件(仅必填)→ 不渲染可选片段(钉死空分支)', () => {
     const out = formatReplay([makeEvent({ ts: '2026-06-23T10:00:00.000Z', traceId: 'a', op: 'squash' })]);
-    expect(out).toBe('[2026-06-23T10:00:00.000Z] squash');
+    expect(out).toBe('[2026-06-23 18:00:00 +08] squash');
   });
 
   it('多事件 → 用换行连接(钉死 join 分隔符)', () => {
