@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>词灵岛 Word Spirit Island · 原型 v2(3–6年级)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@600;700;800;900&family=Noto+Sans+SC:wght@500;700;900&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#241245;--sky:#46C2FF;--sky-deep:#2A9BE0;--sun:#FFC23C;--coral:#FF6B6B;
+    --mint:#3FD9A4;--magic:#B98CFF;--paper:#FFF4E0;--paper-2:#FFE9C7;
+    --line:3px solid var(--ink);--pop:5px 5px 0 var(--ink);--pop-sm:3px 3px 0 var(--ink);
+    --halftone:radial-gradient(var(--ink) 1.2px, transparent 1.3px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{font-family:"Nunito","Noto Sans SC",sans-serif;
+    background:radial-gradient(circle at 18% 12%, #ffe6a8 0 6%, transparent 6.3%),
+      radial-gradient(circle at 82% 78%, #ffd1d1 0 5%, transparent 5.3%),
+      linear-gradient(160deg,#8fe0ff,#cdb4ff 55%,#ffd6a0);
+    min-height:100vh;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 12px 60px}
+  .h-cn{font-family:"ZCOOL KuaiLe","Noto Sans SC",sans-serif}
+  .h-en{font-family:"Baloo 2",sans-serif}
+  .brandbar{text-align:center;color:#fff;text-shadow:2px 2px 0 var(--ink);max-width:780px}
+  .brandbar h1{font-family:"ZCOOL KuaiLe";font-size:30px;margin:0;letter-spacing:1px}
+  .brandbar p{font-weight:800;margin:4px 0 0;font-size:13px;color:#3a2a00;text-shadow:none;
+    background:#fff;display:inline-block;padding:5px 12px;border:var(--line);border-radius:30px;box-shadow:var(--pop-sm)}
+  .switcher{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:780px}
+  .switcher button{font-family:"ZCOOL KuaiLe","Noto Sans SC";font-size:14px;cursor:pointer;
+    background:#fff;border:var(--line);border-radius:30px;padding:7px 14px;color:var(--ink);box-shadow:var(--pop-sm);transition:transform .08s}
+  .switcher button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+  .switcher button.on{background:var(--sun)}
+  .phone{width:392px;max-width:96vw;height:760px;background:var(--paper);border:5px solid var(--ink);
+    border-radius:40px;box-shadow:9px 9px 0 rgba(36,18,69,.45);overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:130px;height:24px;background:var(--ink);border-radius:0 0 18px 18px;z-index:40}
+  .screen{flex:1;display:none;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+  .screen.show{display:flex}
+  .screen::-webkit-scrollbar{width:0}
+  .bubble{background:#fff;border:var(--line);border-radius:22px;padding:12px 14px;box-shadow:var(--pop-sm);position:relative}
+  .bubble.say::after{content:"";position:absolute;left:26px;bottom:-13px;width:18px;height:18px;background:#fff;border-right:var(--line);border-bottom:var(--line);transform:rotate(45deg)}
+  .btn{font-family:"ZCOOL KuaiLe","Noto Sans SC";border:var(--line);border-radius:30px;padding:13px 18px;font-size:17px;cursor:pointer;box-shadow:var(--pop);transition:transform .08s;color:var(--ink)}
+  .btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
+  .btn.primary{background:var(--coral);color:#fff;text-shadow:1.5px 1.5px 0 var(--ink)}
+  .btn.go{background:var(--mint);color:#fff;text-shadow:1.5px 1.5px 0 var(--ink)}
+  .btn.gold{background:var(--sun)}
+  .pill{display:inline-flex;align-items:center;gap:5px;background:#fff;border:var(--line);border-radius:30px;padding:4px 11px;font-weight:900;font-size:14px;box-shadow:var(--pop-sm)}
+  .mascot{filter:drop-shadow(2px 3px 0 rgba(36,18,69,.35))}
+  .statusbar{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:34px 14px 10px}
+  .coins{background:var(--sun)}.stars{background:#fff}.energy{background:#fff;min-width:118px}
+  .ebar{flex:1;height:11px;background:#ffe0d6;border:2px solid var(--ink);border-radius:20px;overflow:hidden}
+  .ebar>i{display:block;height:100%;width:64%;background:repeating-linear-gradient(45deg,var(--coral) 0 7px,#ff9090 7px 14px)}
+  /* 登录 */
+  #login{align-items:center;justify-content:center;gap:16px;padding:30px 24px;text-align:center;background:linear-gradient(170deg,#9ee4ff,#bca6ff)}
+  #login .logo{font-family:"ZCOOL KuaiLe";font-size:40px;color:#fff;text-shadow:3px 3px 0 var(--ink);line-height:1.05}
+  #login .logo small{display:block;font-family:"Baloo 2";font-size:18px;letter-spacing:1px;margin-top:2px}
+  .hero-badge{width:150px;height:150px;border-radius:50%;background:var(--sun);border:5px solid var(--ink);box-shadow:var(--pop);display:grid;place-items:center;font-size:78px;margin:2px auto}
+  #login .loginbtns{display:flex;flex-direction:column;gap:11px;width:100%;max-width:280px;margin-top:4px}
+  #login .small{font-size:12px;font-weight:800;color:#3a2a5a}
+  .field{display:flex;align-items:center;gap:8px;background:#fff;border:var(--line);border-radius:30px;padding:11px 15px;box-shadow:var(--pop-sm);font-weight:800}
+  .field input{border:0;outline:0;font-family:inherit;font-weight:800;font-size:15px;flex:1;background:transparent;color:var(--ink)}
+  .gradechip{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  .gradechip b{font-family:"ZCOOL KuaiLe";font-size:12px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:3px 9px;box-shadow:var(--pop-sm)}
+  /* 地图 */
+  #map{background:var(--halftone) 0 0/16px 16px,linear-gradient(170deg,#a7e9ff,#d7f6e6 60%,#fff4e0)}
+  .map-head{padding:6px 14px 2px}
+  .map-title{font-family:"ZCOOL KuaiLe";font-size:19px;margin:2px 0}
+  .gradesel{display:flex;gap:6px;justify-content:center;padding:4px 12px 2px;flex-wrap:wrap}
+  .gradesel b{font-family:"ZCOOL KuaiLe";font-size:13px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:4px 12px;box-shadow:var(--pop-sm);cursor:pointer;transition:transform .08s}
+  .gradesel b:active{transform:translate(1px,1px)}
+  .gradesel b.on{background:var(--sun)}
+  .mapcap{font-weight:800;font-size:12px;color:#2a6;text-align:center;padding:2px 12px 0}
+  .mapwrap{position:relative;flex:1;min-height:500px;padding:6px 0 14px}
+  .mapwrap svg{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+  .node{position:absolute;z-index:2;width:66px;height:66px;border-radius:50%;border:4px solid var(--ink);box-shadow:var(--pop-sm);display:grid;place-items:center;font-size:30px;cursor:pointer;transition:transform .1s}
+  .node:active{transform:scale(.92)}
+  .node .lbl{position:absolute;top:68px;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:"ZCOOL KuaiLe";font-size:12px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:1px 8px;box-shadow:var(--pop-sm)}
+  .node .st{position:absolute;top:-12px;right:-10px;font-size:13px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:0 5px;font-weight:900}
+  .node.done{background:var(--mint)}.node.cur{background:var(--sun);animation:bob 1.4s ease-in-out infinite}
+  .node.lock{background:#d9d3e8;color:#9a90b5}
+  @keyframes bob{50%{transform:translateY(-6px)}}
+  .youare{position:absolute;z-index:3;font-size:32px;animation:bob 1.4s ease-in-out infinite;pointer-events:none}
+  /* 关卡 */
+  #play{background:linear-gradient(170deg,#ffe7b0,#ffd0d0)}
+  .qtop{display:flex;align-items:center;gap:10px;padding:32px 14px 6px}
+  .qprog{flex:1;height:14px;background:#fff;border:var(--line);border-radius:20px;overflow:hidden}
+  .qprog>i{display:block;height:100%;width:60%;background:var(--mint)}
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;gap:14px;padding:10px 18px 18px}
+  .prompt-card{width:100%;background:#fff;border:var(--line);border-radius:24px;box-shadow:var(--pop);padding:18px;text-align:center}
+  .prompt-card .tag{font-family:"ZCOOL KuaiLe";font-size:12px;background:var(--magic);color:#fff;border:2px solid var(--ink);border-radius:20px;padding:2px 10px;display:inline-block;box-shadow:var(--pop-sm)}
+  .prompt-card .big{font-family:"Baloo 2";font-size:30px;margin:12px 0 4px}
+  .speaker{font-size:40px}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%}
+  .opt{background:#fff;border:var(--line);border-radius:20px;padding:16px 8px;text-align:center;cursor:pointer;box-shadow:var(--pop-sm);font-family:"Baloo 2";font-size:19px;transition:transform .08s}
+  .opt:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+  .opt small{display:block;font-family:"Noto Sans SC";font-weight:800;font-size:12px;color:#7a6f95;margin-top:2px}
+  .opt.right{background:var(--mint);color:#fff;text-shadow:1px 1px 0 var(--ink)}
+  .opt.wrong{background:#ffd0d0}
+  /* 对话 */
+  #chat{background:var(--halftone) 0 0/15px 15px,linear-gradient(170deg,#d9f7ff,#efe6ff)}
+  .chat-head{display:flex;align-items:center;gap:10px;padding:32px 14px 8px;border-bottom:var(--line);background:#fff}
+  .chat-head .av{width:46px;height:46px;border-radius:50%;background:var(--magic);border:3px solid var(--ink);display:grid;place-items:center;font-size:26px}
+  .chat-head .who b{font-family:"ZCOOL KuaiLe";font-size:16px}
+  .chat-head .who span{font-size:11px;font-weight:800;color:var(--mint)}
+  .msgs{flex:1;display:flex;flex-direction:column;gap:12px;padding:14px;overflow-y:auto}
+  .m{max-width:80%;padding:10px 13px;border:var(--line);border-radius:18px;font-weight:800;box-shadow:var(--pop-sm);font-size:15px}
+  .m .zh{display:block;font-size:11px;color:#8a7fae;margin-top:3px;font-weight:700}
+  .m.ai{align-self:flex-start;background:#fff;border-bottom-left-radius:5px}
+  .m.me{align-self:flex-end;background:var(--sun);border-bottom-right-radius:5px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:6px 12px}
+  .chip{background:#fff;border:2px solid var(--ink);border-radius:20px;padding:7px 11px;font-family:"Baloo 2";font-size:13px;box-shadow:var(--pop-sm);cursor:pointer}
+  .chat-input{display:flex;gap:8px;padding:10px 12px 14px;border-top:var(--line);background:#fff;align-items:center}
+  .chat-input .box{flex:1;background:var(--paper);border:var(--line);border-radius:30px;padding:10px 14px;font-weight:800;color:#9a90b5}
+  .mic{width:46px;height:46px;border-radius:50%;background:var(--coral);border:var(--line);display:grid;place-items:center;font-size:22px;box-shadow:var(--pop-sm);cursor:pointer}
+  /* 商店 */
+  #shop{background:linear-gradient(170deg,#ffe0f0,#e6e0ff)}
+  .shop-head{padding:32px 14px 6px;text-align:center}
+  .shop-head h2{font-family:"ZCOOL KuaiLe";margin:4px 0}
+  .seg{display:flex;gap:8px;justify-content:center;padding:2px 12px 10px}
+  .seg b{font-family:"ZCOOL KuaiLe";font-size:13px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:5px 12px;box-shadow:var(--pop-sm)}
+  .seg b.on{background:var(--sun)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:6px 14px 20px}
+  .item{background:#fff;border:var(--line);border-radius:20px;padding:13px 10px;text-align:center;box-shadow:var(--pop-sm)}
+  .item .pic{font-size:46px;filter:drop-shadow(2px 2px 0 rgba(36,18,69,.3))}
+  .item .nm{font-family:"ZCOOL KuaiLe";font-size:14px;margin:6px 0 8px}
+  .item .buy{background:var(--sun);border:2px solid var(--ink);border-radius:20px;padding:5px 0;font-weight:900;box-shadow:var(--pop-sm);cursor:pointer;font-size:13px}
+  .item.real{background:#fff7d6}
+  .item.real .ribbon{font-family:"ZCOOL KuaiLe";font-size:10px;background:var(--coral);color:#fff;border:2px solid var(--ink);border-radius:20px;padding:1px 8px;display:inline-block;margin-bottom:4px;box-shadow:var(--pop-sm)}
+  /* 番茄钟 */
+  #rest{align-items:center;justify-content:center;text-align:center;gap:16px;padding:30px 26px;background:linear-gradient(170deg,#ffd5c2,#ffe9b8)}
+  .tomato{width:140px;height:140px;border-radius:50%;background:var(--coral);border:5px solid var(--ink);box-shadow:var(--pop);display:grid;place-items:center;font-size:74px;position:relative}
+  .tomato .leaf{position:absolute;top:-16px;font-size:34px}
+  #rest h2{font-family:"ZCOOL KuaiLe";font-size:24px;margin:0}
+  .summary{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .sumcard{background:#fff;border:var(--line);border-radius:18px;padding:10px 14px;box-shadow:var(--pop-sm);min-width:84px}
+  .sumcard b{display:block;font-family:"Baloo 2";font-size:22px}
+  .sumcard span{font-size:11px;font-weight:800;color:#7a6f95}
+  .note{font-weight:800;font-size:13px;color:#5a4a2a;max-width:290px}
+  .tabbar{display:flex;border-top:var(--line);background:#fff}
+  .tabbar div{flex:1;text-align:center;padding:9px 0 11px;font-family:"ZCOOL KuaiLe";font-size:11px;color:#9a90b5;cursor:pointer}
+  .tabbar div.on{color:var(--ink)}.tabbar div b{display:block;font-size:21px;line-height:1.1}
+  .footnote{max-width:780px;text-align:center;color:#3a2a5a;font-weight:800;font-size:12px;background:#fff;border:var(--line);border-radius:18px;padding:10px 14px;box-shadow:var(--pop-sm)}
+</style>
+</head>
+<body>
+
+  <div class="brandbar">
+    <h1>词灵岛 · Word Spirit Island</h1>
+    <p>外研版（一起）· 3–6 年级（课标一级+二级）· 漫画闯关 · 番茄钟 15 分钟 · 原型 v2</p>
+  </div>
+
+  <div class="switcher" id="sw">
+    <button data-s="login" class="on">① 登录</button>
+    <button data-s="map">② 冒险地图（3–6年级）</button>
+    <button data-s="play">③ 关卡玩法</button>
+    <button data-s="chat">④ AI 对话</button>
+    <button data-s="shop">⑤ 礼物商店</button>
+    <button data-s="rest">⑥ 番茄钟结束</button>
+  </div>
+
+  <div class="phone">
+    <div class="notch"></div>
+
+    <!-- ① 登录 -->
+    <section class="screen show" id="login">
+      <div class="hero-badge mascot">🦊</div>
+      <div class="logo h-cn">词灵岛<small class="h-en">WORD SPIRIT ISLAND</small></div>
+      <div class="bubble say" style="max-width:300px"><b>嗨，我是词灵小狐！</b><br><span style="font-weight:800;font-size:13px">登录后选你的年级，一起去岛上收服英语词灵～</span></div>
+      <div class="loginbtns">
+        <div class="field">🧒 <input placeholder="小冒险家昵称"></div>
+        <div class="field">🔒 <input placeholder="家长设置的密码" type="password"></div>
+        <div class="small" style="margin-top:2px">选择年级</div>
+        <div class="gradechip"><b>三年级</b><b style="background:var(--sun)">四年级</b><b>五年级</b><b>六年级</b></div>
+        <button class="btn primary h-cn">开始冒险</button>
+        <div class="small">— 或者用 —</div>
+        <button class="btn h-cn" style="background:#5fd36a;color:#fff;text-shadow:1px 1px 0 var(--ink)">💬 微信登录（家长授权）</button>
+        <div class="small">👨‍👩‍👧 已开启家长守护 · 每日 15 分钟健康时长</div>
+      </div>
+    </section>
+
+    <!-- ② 冒险地图（3–6 年级分级） -->
+    <section class="screen" id="map">
+      <div class="statusbar">
+        <span class="pill stars">⭐ 38</span>
+        <span class="pill coins">🪙 260</span>
+        <span class="pill energy">🍅 <span class="ebar"><i></i></span> 9:42</span>
+      </div>
+      <div class="map-head"><div class="map-title h-cn">🗺️ 词灵大陆 · 3–6 年级</div></div>
+      <div class="gradesel" id="gradesel">
+        <b data-g="三" class="on">三年级</b><b data-g="四">四年级</b><b data-g="五">五年级</b><b data-g="六">六年级</b>
+      </div>
+      <div class="mapcap h-cn" id="mapcap"></div>
+      <div class="mapwrap">
+        <svg viewBox="0 0 392 520" preserveAspectRatio="none">
+          <path d="M70 60 C 180 60, 220 130, 120 165 S 60 255, 200 275 S 330 335, 230 385 S 120 445, 250 485"
+                fill="none" stroke="#241245" stroke-width="6" stroke-dasharray="2 16" stroke-linecap="round" opacity=".55"/>
+        </svg>
+        <div class="node" id="node0"></div>
+        <div class="node" id="node1"></div>
+        <div class="node" id="node2"></div>
+        <div class="node" id="node3"></div>
+        <div class="node" id="node4"></div>
+        <div class="node" id="node5"></div>
+        <div class="youare" id="youare">🦊</div>
+      </div>
+      <div style="padding:0 16px 14px"><button class="btn go h-cn" id="mapEnterBtn" style="width:100%" onclick="go('play')">进入当前岛 ▶</button></div>
+    </section>
+
+    <!-- ③ 关卡玩法 -->
+    <section class="screen" id="play">
+      <div class="qtop">
+        <span class="pill" style="background:#fff">❌❌🤍</span>
+        <div class="qprog"><i></i></div>
+        <span class="pill coins">🪙 +30</span>
+      </div>
+      <div class="stage">
+        <div class="bubble say h-cn" style="align-self:flex-start;font-size:14px">🦊 听一听，哪个是「妈妈」？</div>
+        <div class="prompt-card">
+          <span class="tag h-cn">三年级 · 家庭小镇 · 听音选词</span>
+          <div class="big h-en">🔊 “mother”</div>
+          <div class="speaker">🔊</div>
+          <div style="font-weight:800;font-size:12px;color:#7a6f95">点喇叭再听一次</div>
+        </div>
+        <div class="opts">
+          <div class="opt right h-en">mother<small>妈妈 ✔</small></div>
+          <div class="opt h-en">father<small>爸爸</small></div>
+          <div class="opt h-en">sister<small>姐妹</small></div>
+          <div class="opt h-en">brother<small>兄弟</small></div>
+        </div>
+        <div class="bubble" style="width:100%;text-align:center;background:var(--mint);color:#fff;text-shadow:1px 1px 0 var(--ink)"><b class="h-cn">太棒了！+10 🪙 收服词灵「mother」🧚</b></div>
+        <div style="font-weight:800;font-size:11px;color:#7a6f95;text-align:center">题型库按年级进阶：三四年级=听音选词/看图选词；五六年级加句型连线/补全/跟读</div>
+        <button class="btn primary h-cn" style="width:100%">下一题 ▶</button>
+      </div>
+    </section>
+
+    <!-- ④ AI 对话 -->
+    <section class="screen" id="chat">
+      <div class="chat-head">
+        <div class="av">🤖</div>
+        <div class="who"><b class="h-cn">词灵 Robo</b><br><span>● 在线 · 只说你学过的词（按年级）</span></div>
+        <span class="pill" style="margin-left:auto;background:var(--sun)">🍅 6:10</span>
+      </div>
+      <div class="msgs">
+        <div class="m ai">Hi! I'm Robo. What's your name?<span class="zh">嗨！我是 Robo，你叫什么名字？</span></div>
+        <div class="m me">My name is Lulu.<span class="zh">我叫露露</span></div>
+        <div class="m ai">Nice to meet you! What did you do yesterday?<span class="zh">很高兴认识你！你昨天做了什么？（五年级·一般过去时）</span></div>
+        <div class="m me">I played football.<span class="zh">我踢足球了</span></div>
+        <div class="m ai">Great! What are you going to do tomorrow?<span class="zh">真棒！你明天打算做什么？（六年级·一般将来时）</span></div>
+      </div>
+      <div class="chips">
+        <span class="chip">I'm going to read.</span>
+        <span class="chip">I'm going to swim.</span>
+        <span class="chip">💡 帮我说</span>
+      </div>
+      <div class="chat-input"><div class="box h-en">Say something…</div><div class="mic">🎤</div></div>
+    </section>
+
+    <!-- ⑤ 礼物商店 -->
+    <section class="screen" id="shop">
+      <div class="shop-head">
+        <div class="statusbar" style="padding:32px 0 4px">
+          <span class="pill stars">⭐ 38</span><span class="pill coins">🪙 260</span><span class="pill" style="background:#fff">🎁 礼物商店</span>
+        </div>
+        <h2 class="h-cn">用金币兑换礼物 🎁</h2>
+      </div>
+      <div class="seg"><b class="on h-cn">装扮</b><b class="h-cn">贴纸</b><b class="h-cn">实物奖励</b></div>
+      <div class="grid">
+        <div class="item"><div class="pic">🧙</div><div class="nm h-cn">小狐巫师袍</div><div class="buy">🪙 120</div></div>
+        <div class="item"><div class="pic">👑</div><div class="nm h-cn">冒险家金冠</div><div class="buy">🪙 200</div></div>
+        <div class="item"><div class="pic">🪄</div><div class="nm h-cn">词灵魔法杖</div><div class="buy">🪙 150</div></div>
+        <div class="item"><div class="pic">🐲</div><div class="nm h-cn">飞龙坐骑</div><div class="buy">🪙 480</div></div>
+        <div class="item real"><span class="ribbon h-cn">实物 · 家长发货</span><div class="pic">📒</div><div class="nm h-cn">英语贴纸本</div><div class="buy">🪙 600</div></div>
+        <div class="item real"><span class="ribbon h-cn">实物 · 家长发货</span><div class="pic">🎧</div><div class="nm h-cn">点读耳机</div><div class="buy">🪙 1500</div></div>
+      </div>
+    </section>
+
+    <!-- ⑥ 番茄钟结束 -->
+    <section class="screen" id="rest">
+      <div class="tomato mascot"><span class="leaf">🌿</span>🍅</div>
+      <h2 class="h-cn">今天的冒险结束啦！</h2>
+      <div class="bubble say" style="max-width:290px"><b class="h-cn">🦊 15 分钟到，眼睛要休息～</b><br><span style="font-weight:800;font-size:13px">明天再来收服更多词灵吧！</span></div>
+      <div class="summary">
+        <div class="sumcard"><b class="h-en">12</b><span class="h-cn">新词灵</span></div>
+        <div class="sumcard"><b class="h-en">+90</b><span class="h-cn">金币</span></div>
+        <div class="sumcard"><b class="h-en">3⭐</b><span class="h-cn">本关星星</span></div>
+      </div>
+      <div class="note h-cn">📚 今日掌握：mother/father/sister · 句型 This is my…（三年级·家庭小镇）。已按年级进度记入成长档案。</div>
+      <button class="btn gold h-cn" style="width:200px">看成长档案 📈</button>
+      <div style="font-weight:800;font-size:12px;color:#7a5">护眼模式 · 家长可查看分年级学习报告</div>
+    </section>
+
+    <div class="tabbar" id="tabbar">
+      <div data-s="map" class="on"><b>🗺️</b>地图</div>
+      <div data-s="play"><b>⚔️</b>闯关</div>
+      <div data-s="chat"><b>🤖</b>对话</div>
+      <div data-s="shop"><b>🎁</b>礼物</div>
+      <div data-s="rest"><b>🍅</b>休息</div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    交付说明：可下载高保真交互原型 v2（自包含 HTML/CSS），知识来源覆盖 <b>3–6 年级</b>。冒险地图顶部「年级选择器」可切三/四/五/六年级，岛屿与语法焦点随年级进阶（锚定课标一级/二级）。配套《PRD + 设计交接 v2》与《外研版语法梳理·据实版》同步使用。
+  </div>
+
+<script>
+  const screens=["login","map","play","chat","shop","rest"];
+  function go(s){
+    screens.forEach(id=>document.getElementById(id).classList.toggle("show",id===s));
+    document.querySelectorAll("#sw button").forEach(b=>b.classList.toggle("on",b.dataset.s===s));
+    document.querySelectorAll("#tabbar div").forEach(d=>d.classList.toggle("on",d.dataset.s===s));
+    document.querySelector(".phone").scrollTop=0;
+  }
+  document.querySelectorAll("#sw button").forEach(b=>b.onclick=()=>go(b.dataset.s));
+  document.querySelectorAll("#tabbar div").forEach(d=>d.onclick=()=>go(d.dataset.s));
+
+  // 3–6 年级地图数据（语法焦点锚定课标：一级=现在时/进行时；二级=过去时/将来时/比较）
+  const POS=[[38,52],[88,138],[168,250],[198,360],[118,420],[236,460]];
+  const GRADES={
+    "三":{cap:"课标一级 · be动词 / 简单句 · 描述人和物",
+      isl:[["👋","问候岛","done","⭐3"],["🌈","彩虹森林","done","⭐3"],["🔢","数字山谷","done","⭐2"],["🏠","家庭小镇","cur",""],["🐾","动物乐园","lock",""],["🎨","涂色坊","lock",""]]},
+    "四":{cap:"课标一级 · 现在进行时 · 描述（can / some）",
+      isl:[["🍜","美食集市","done","⭐3"],["🎬","进行时剧场","done","⭐2"],["🚉","方位车站","cur",""],["💰","价格市场","lock",""],["🏫","学校日","lock",""],["🎒","文具铺","lock",""]]},
+    "五":{cap:"课标二级 · 一般过去时（起步）· 描述事件",
+      isl:[["⏰","作息钟楼","done","⭐3"],["📜","往事回廊","cur",""],["🎎","节日庙会","lock",""],["🍂","四季天气","lock",""],["✈️","出行站","lock",""],["📖","故事屋","lock",""]]},
+    "六":{cap:"课标二级 · 一般将来时 / 比较级 · 描述计划",
+      isl:[["🚀","未来计划站","cur",""],["📏","比较擂台","lock",""],["🗺️","旅行规划","lock",""],["🎭","故事剧场","lock",""],["🌍","世界角","lock",""],["🏆","毕业关","lock",""]]}
+  };
+  function renderGrade(g){
+    const d=GRADES[g];
+    document.getElementById("mapcap").textContent=d.cap;
+    d.isl.forEach((it,i)=>{
+      const n=document.getElementById("node"+i);
+      n.style.left=POS[i][0]+"px"; n.style.top=POS[i][1]+"px";
+      n.className="node "+it[2];
+      n.innerHTML=it[0]+(it[3]?'<span class="st">'+it[3]+'</span>':'')+'<span class="lbl">'+it[1]+'</span>';
+      if(it[2]==="cur"){
+        const ya=document.getElementById("youare");
+        ya.style.left=(POS[i][0]+14)+"px"; ya.style.top=(POS[i][1]-40)+"px";
+      }
+    });
+    document.querySelectorAll("#gradesel b").forEach(b=>b.classList.toggle("on",b.dataset.g===g));
+    const cur=d.isl.find(x=>x[2]==="cur");
+    document.getElementById("mapEnterBtn").textContent="进入「"+(cur?cur[1]:d.isl[0][1])+"」▶";
+  }
+  document.querySelectorAll("#gradesel b").forEach(b=>b.onclick=()=>renderGrade(b.dataset.g));
+  renderGrade("三");
+
+  document.querySelectorAll("#play .opt").forEach(o=>o.onclick=function(){
+    document.querySelectorAll("#play .opt").forEach(x=>x.classList.remove("wrong"));
+    if(!this.classList.contains("right"))this.classList.add("wrong");
+  });
+  document.querySelectorAll("#chat .chip").forEach(c=>c.onclick=function(){
+    if(this.textContent.includes("帮我说"))return;
+    const m=document.createElement("div");m.className="m me";m.textContent=this.textContent;
+    document.querySelector("#chat .msgs").appendChild(m);
+    document.querySelector("#chat .msgs").scrollTop=9999;
+  });
+</script>
+</body>
+</html>
