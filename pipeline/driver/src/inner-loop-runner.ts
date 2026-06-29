@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -11,7 +11,7 @@ import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } 
 import { renderHandoffReport } from './handoff.js';
 import { makeOrchestratorFix } from './orchestrator-fix.js';
 import { makeEventSink, makeEvent, type EventSink } from './events.js';
-import { parseDesignFindings, extractTestableAntiGoals, extractJsonBlock } from './design-findings.js';
+import { parseDesignFindings, extractJsonBlock, resolveDesignReview } from './design-findings.js';
 import { instrumentRunPhase, instrumentGateCmd, instrumentOrchestratorFix, emitSquash, emitIntegrate } from './instrument.js';
 import { squashMessage } from './squash-message.js';
 import { aggregatePhaseMs } from './aggregate-phase-ms.js';
@@ -161,6 +161,7 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
   const designReviewMode = process.env.IH_DESIGN_REVIEW ?? 'off';
   if (designReviewMode === 'auto' || designReviewMode === 'block') {
     const dsStart = Date.now();
+    let dsCost = 0;
     try {
       const dsRoleDoc = readFileSync(join(pipeline, 'roles', 'design-soundness-agent.md'), 'utf8');
       const dsPrompt = `${dsRoleDoc}\n\n# === 评审下面这份规约切片，按角色要求只输出 JSON findings ===\n\n${spec.specSlice}`;
@@ -171,18 +172,58 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
         resume: false,
         onTraceLine: (line) => appendFileSync(join(runsDir, 'design-soundness-0.jsonl'), line + '\n'),
       });
-      const anti = extractTestableAntiGoals(parseDesignFindings(extractJsonBlock(r.result)));
-      if (anti.length > 0) context.antiGoals = anti;
+      dsCost = r.costUsd ?? 0;
+      const findings = parseDesignFindings(extractJsonBlock(r.result));
+      // block 模式:读人工确认文件(人审后写,内容=确认保留的反目标 string[])。auto 无需确认。
+      const confirmedPath = join(runsDir, 'design-confirmed.json');
+      const confirmed =
+        designReviewMode === 'block' && existsSync(confirmedPath)
+          ? (JSON.parse(readFileSync(confirmedPath, 'utf8')) as string[])
+          : null;
+      const decision = resolveDesignReview(designReviewMode, findings, confirmed);
       ictx.emit(
         makeEvent({
           ts: new Date(dsStart).toISOString(),
           traceId: jobId,
           op: 'design-soundness',
-          status: 'ok',
+          status: decision.action === 'hold' ? 'held' : 'ok',
           durationMs: Date.now() - dsStart,
-          payload: { mode: designReviewMode, antiGoals: anti.length, pendingHumanReview: designReviewMode === 'block' },
+          payload: { mode: designReviewMode, antiGoals: decision.antiGoals.length, action: decision.action },
         }),
       );
+      if (decision.action === 'hold') {
+        // block 无确认 → 把 findings 递人:写待审产物 + 人读交接,held(blocked-escalated)早返回,不进 test/dev。
+        writeFileSync(join(runsDir, 'design-findings.json'), JSON.stringify(findings, null, 2), 'utf8');
+        const lines = [
+          `# 设计合理性评审 · 待人审 (job ${jobId})`,
+          '',
+          `**意图**：${findings.intentRestatement}`,
+          '',
+          '**反目标**（行为正确但目的失败的条件；〔可测〕将自动写成确定性测试）：',
+          ...findings.antiGoals.map((a) => `- ${a.testable ? '〔可测〕' : '〔需人判〕'} ${a.desc}`),
+          '',
+          '**建议验收**：',
+          ...findings.suggestedAcceptance.map((s) => `- ${s}`),
+          '',
+          '## 如何放行',
+          `复核后，把你确认保留的「可测反目标」desc 列表写入 \`${confirmedPath}\`（JSON 字符串数组，可增删），再重跑本 job。`,
+          '空数组 = 确认无可测反目标，照常继续（不注入）。',
+        ];
+        writeFileSync(join(runsDir, 'design-review.md'), lines.join('\n'), 'utf8');
+        const held: InnerLoopResult = {
+          status: 'blocked-escalated',
+          fixRounds: 0,
+          reason: 'design-soundness 待人审:复核反目标后写 design-confirmed.json 并重跑',
+          sessions: {},
+        };
+        writeFileSync(join(runsDir, 'state.json'), JSON.stringify({ jobId, ...held, costUsd: dsCost }, null, 2), 'utf8');
+        appendRunLedger(
+          join(pipeline, '..', 'docs', 'metrics', 'runs-ledger.jsonl'),
+          runLedgerRecord(jobId, held, dsCost, new Date().toISOString()),
+        );
+        return held;
+      }
+      if (decision.antiGoals.length > 0) context.antiGoals = decision.antiGoals;
     } catch (e) {
       // 降级:无反目标注入,主流程照常(新前置 phase 绝不拖垮既有 US)。
       ictx.emit(

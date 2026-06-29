@@ -83,3 +83,33 @@ export function extractJsonBlock(text: string): string {
   const inner = text.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1];
   return (inner ?? text).trim();
 }
+
+/** design-review 决策（杠杆1-1b 人审检查点）。 */
+export interface DesignReviewDecision {
+  /** proceed=注入反目标继续;hold=待人审,不进 test/dev。 */
+  action: 'proceed' | 'hold';
+  antiGoals: string[];
+}
+
+/**
+ * 纯:据 IH_DESIGN_REVIEW 模式 + 人工确认态，决定 proceed/hold 及注入哪些反目标。
+ * - auto：全自动，注入全部 testable 反目标。
+ * - block + 人工确认(数组,含空)：proceed 用确认的反目标（人可增删）。
+ * - block + 未确认(null)：hold（待人审，不进 test/dev）。
+ * - 其它(off/未知)：proceed 无反目标（安全兜底）。
+ */
+export function resolveDesignReview(
+  mode: string,
+  findings: DesignFindings,
+  confirmed: string[] | null,
+): DesignReviewDecision {
+  if (mode === 'auto') {
+    return { action: 'proceed', antiGoals: extractTestableAntiGoals(findings) };
+  }
+  if (mode === 'block') {
+    return confirmed === null
+      ? { action: 'hold', antiGoals: [] }
+      : { action: 'proceed', antiGoals: confirmed };
+  }
+  return { action: 'proceed', antiGoals: [] };
+}
