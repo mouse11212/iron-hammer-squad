@@ -39,7 +39,7 @@ harness 功能门只能验"实现 vs 规约的正确性"。但规约正确、实
 
 1. **验收清单** `AcceptanceItem[]`：每项结构为 `{id, source, kind, desc}`
    - `id`：唯一标识符（如 `a1`、`c2`），用于 `AcceptanceVerdict` 回指
-   - `source`：来源（如 `design-findings` / `prd` / `human`）
+   - `source`：来源 US 的 id，或 `'epic'`（epic 级补充评审）
    - `kind`：`anti-goal` | `acceptance` | `failure-mode`（三选一）
    - `desc`：该项的具体描述（非空）
 2. **可玩增量**：启动方式 / URL（playwright 打开的入口）
@@ -49,7 +49,7 @@ harness 功能门只能验"实现 vs 规约的正确性"。但规约正确、实
 ```json
 [
   { "itemId": "a1", "tier": "blocker", "evidence": "截图 a1.png：静音状态下连点正确选项仍 100% 答对", "reason": "听辨意图失效——无需听音即可通关" },
-  { "itemId": "b1", "tier": "advise", "evidence": "截图 b1.png：结算页无返回主菜单按钮，需手动刷新", "reason": "流程毛刺，不影响核心玩法但体验欠佳" },
+  { "itemId": "f1", "tier": "advise", "evidence": "截图 f1.png：结算页无返回主菜单按钮，需手动刷新", "reason": "流程毛刺，不影响核心玩法但体验欠佳" },
   { "itemId": "c1", "tier": "pass", "evidence": "截图 c1.png：结算页列出今日掌握 4 词，与实际答对一致", "reason": "达成" }
 ]
 ```
