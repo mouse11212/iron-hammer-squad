@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateAcceptanceItems, parseAcceptanceVerdicts, type FindingsSource } from '../src/acceptance.js';
+import { aggregateAcceptanceItems, parseAcceptanceVerdicts, resolveAcceptance, type FindingsSource, type AcceptanceVerdict } from '../src/acceptance.js';
 import type { DesignFindings } from '../src/design-findings.js';
 
 // 仿真实 #2「听音选词」反目标的 findings 工厂（判别力基准；US-1..8 跑在 design-soundness 之前，无真 artifact）。
@@ -134,5 +134,55 @@ describe('parseAcceptanceVerdicts（纯：解析 agent 产 verdict JSON，非法
 
   it('reason 非字符串 → 抛错，信息指向 reason', () => {
     expect(() => parseAcceptanceVerdicts(verdictRaw({ reason: 7 }))).toThrow(/reason/);
+  });
+});
+
+describe('resolveAcceptance（纯：据模式+人确认决定 pass/escalate/hold + 升级/归档项）', () => {
+  const vs: AcceptanceVerdict[] = [
+    { itemId: 'a1', tier: 'blocker', evidence: 'e', reason: 'r' },
+    { itemId: 'c1', tier: 'advise', evidence: 'e', reason: 'r' },
+    { itemId: 'f1', tier: 'pass', evidence: 'e', reason: 'r' },
+  ];
+  const allPass: AcceptanceVerdict[] = [{ itemId: 'a1', tier: 'pass', evidence: 'e', reason: 'r' }];
+
+  it('auto + 含 blocker → escalate，列 blocker，advise 归档', () => {
+    expect(resolveAcceptance('auto', vs, null)).toEqual({ action: 'escalate', escalated: ['a1'], advised: ['c1'] });
+  });
+
+  it('auto + 无 blocker → pass，advise 仍归档', () => {
+    const noBlock: AcceptanceVerdict[] = [{ itemId: 'c1', tier: 'advise', evidence: 'e', reason: 'r' }];
+    expect(resolveAcceptance('auto', noBlock, null)).toEqual({ action: 'pass', escalated: [], advised: ['c1'] });
+  });
+
+  it('block + 无人工确认(null) → hold（待人复核，不分流）', () => {
+    expect(resolveAcceptance('block', vs, null)).toEqual({ action: 'hold', escalated: [], advised: [] });
+  });
+
+  it('block + 人确认(改过 tier)→ 用确认的分流（人可降级 blocker）', () => {
+    const confirmed: AcceptanceVerdict[] = [
+      { itemId: 'a1', tier: 'advise', evidence: 'e', reason: '人判：非阻断' },
+      { itemId: 'c1', tier: 'advise', evidence: 'e', reason: 'r' },
+    ];
+    expect(resolveAcceptance('block', vs, confirmed)).toEqual({ action: 'pass', escalated: [], advised: ['a1', 'c1'] });
+  });
+
+  it('block + 人确认仍含 blocker → escalate', () => {
+    expect(resolveAcceptance('block', vs, vs)).toEqual({ action: 'escalate', escalated: ['a1'], advised: ['c1'] });
+  });
+
+  it('block + 人确认空数组 → pass（人判无任何 blocker/advise）', () => {
+    expect(resolveAcceptance('block', vs, [])).toEqual({ action: 'pass', escalated: [], advised: [] });
+  });
+
+  it('off → pass（不跑即放行，安全兜底，忽略 verdict）', () => {
+    expect(resolveAcceptance('off', vs, null)).toEqual({ action: 'pass', escalated: [], advised: [] });
+  });
+
+  it('未知模式 → pass（安全兜底）', () => {
+    expect(resolveAcceptance('weird', vs, null)).toEqual({ action: 'pass', escalated: [], advised: [] });
+  });
+
+  it('auto 全 pass → pass 无升级无归档', () => {
+    expect(resolveAcceptance('auto', allPass, null)).toEqual({ action: 'pass', escalated: [], advised: [] });
   });
 });

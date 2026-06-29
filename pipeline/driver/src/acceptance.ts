@@ -100,3 +100,34 @@ export function parseAcceptanceVerdicts(raw: string): AcceptanceVerdict[] {
     return { itemId: v.itemId, tier: v.tier as AcceptanceVerdict['tier'], evidence: v.evidence, reason: v.reason };
   });
 }
+
+/** 验收关分流结果（2b epic 入口据此落账：escalate→升级人类 / pass→放行；advised 始终归档不阻）。 */
+export interface AcceptanceDecision {
+  action: 'pass' | 'escalate' | 'hold';
+  escalated: string[];   // blocker 项 itemId（升级人类裁决）
+  advised: string[];     // advise 项 itemId（归档，不阻塞放行——issue#13）
+}
+
+/**
+ * 纯：据 IH_ACCEPTANCE 模式 + 人工确认态，决定放行/升级/hold 及升级/归档项。
+ * - auto：用 agent verdicts。有 blocker→escalate（列 blocker），否则 pass；advise 始终归档。
+ * - block + 未确认(null)：hold（待人复核 verdict）。
+ * - block + 人确认(数组,含空)：用确认后的 verdicts 分流（人可改 tier，增删）。
+ * - 其它(off/未知)：pass（不跑即放行，安全兜底）。
+ */
+export function resolveAcceptance(
+  mode: string,
+  agentVerdicts: AcceptanceVerdict[],
+  humanConfirmed: AcceptanceVerdict[] | null,
+): AcceptanceDecision {
+  if (mode === 'block' && humanConfirmed === null) {
+    return { action: 'hold', escalated: [], advised: [] };
+  }
+  if (mode !== 'auto' && mode !== 'block') {
+    return { action: 'pass', escalated: [], advised: [] };
+  }
+  const effective = mode === 'block' ? (humanConfirmed as AcceptanceVerdict[]) : agentVerdicts;
+  const escalated = effective.filter((v) => v.tier === 'blocker').map((v) => v.itemId);
+  const advised = effective.filter((v) => v.tier === 'advise').map((v) => v.itemId);
+  return { action: escalated.length > 0 ? 'escalate' : 'pass', escalated, advised };
+}
