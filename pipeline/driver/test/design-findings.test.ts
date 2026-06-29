@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDesignFindings, extractTestableAntiGoals, extractJsonBlock } from '../src/design-findings.js';
+import { parseDesignFindings, extractTestableAntiGoals, extractJsonBlock, resolveDesignReview } from '../src/design-findings.js';
 
 // 合法 findings 工厂（造一份完整的，再按需破坏某字段）。
 function validRaw(over: Record<string, unknown> = {}): string {
@@ -123,5 +123,38 @@ describe('extractJsonBlock（纯：从 agent 输出提取 JSON，容 markdown ``
   });
   it('无 fence → 返回 trim 后原文', () => {
     expect(extractJsonBlock('  {"a":1}  ')).toBe('{"a":1}');
+  });
+});
+
+describe('resolveDesignReview（纯：据模式+确认态决定 proceed/hold + 用哪些反目标）', () => {
+  const findings = {
+    intentRestatement: 'x',
+    antiGoals: [
+      { desc: 'A', testable: true },
+      { desc: 'B', testable: false },
+      { desc: 'C', testable: true },
+    ],
+    failureModes: [],
+    suggestedAcceptance: [],
+  };
+
+  it('auto → proceed，注入全部 testable 反目标', () => {
+    expect(resolveDesignReview('auto', findings, null)).toEqual({ action: 'proceed', antiGoals: ['A', 'C'] });
+  });
+
+  it('block + 有人工确认 → proceed，用确认的反目标（人可增删）', () => {
+    expect(resolveDesignReview('block', findings, ['A'])).toEqual({ action: 'proceed', antiGoals: ['A'] });
+  });
+
+  it('block + 无人工确认 → hold（待人审，不进 test/dev）', () => {
+    expect(resolveDesignReview('block', findings, null)).toEqual({ action: 'hold', antiGoals: [] });
+  });
+
+  it('off/未知 → proceed 无反目标（安全兜底）', () => {
+    expect(resolveDesignReview('off', findings, null)).toEqual({ action: 'proceed', antiGoals: [] });
+  });
+
+  it('block + 人工确认为空数组 → proceed 空反目标（人审后判定无可测反目标，非 hold）', () => {
+    expect(resolveDesignReview('block', findings, [])).toEqual({ action: 'proceed', antiGoals: [] });
   });
 });
