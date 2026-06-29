@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>铁锤小队 · Harness 工程架构设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0C1116; --panel:#11171E; --panel-2:#0F141A; --steel:#233040;
+    --steel-soft:#1A2530; --text:#C8D2DC; --dim:#7C8A98; --faint:#54616E;
+    --comp:#35B7C2;       /* Computational / 确定性 */
+    --comp-dim:#1d3a40;
+    --inf:#E0A03A;        /* Inferential / 推断 */
+    --inf-dim:#3a2f17;
+    --alert:#EF5B53;      /* drift / 告警 / HITL */
+    --alert-dim:#3a1f1d;
+    --grid:rgba(53,183,196,.045);
+    --r:3px;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --disp:'Space Grotesk','PingFang SC','Microsoft YaHei',sans-serif;
+    --body:'Inter','PingFang SC','Microsoft YaHei',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--ink); color:var(--text); font-family:var(--body);
+    font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:34px 34px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+  ::selection{background:var(--comp);color:var(--ink)}
+
+  /* ---------- shared ---------- */
+  .mono{font-family:var(--mono)}
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--comp);display:inline-flex;align-items:center;gap:9px;
+  }
+  .eyebrow::before{content:"";width:22px;height:1px;background:var(--comp);display:inline-block}
+  h2{font-family:var(--disp);font-weight:600;font-size:clamp(24px,3.4vw,34px);
+     letter-spacing:-.01em;line-height:1.12;margin:14px 0 0}
+  .lead{color:var(--dim);max-width:62ch;margin-top:14px;font-size:15px}
+  section{padding:74px 0;border-top:1px solid var(--steel-soft)}
+  .tag{font-family:var(--mono);font-size:10.5px;color:var(--faint);
+       border:1px solid var(--steel);border-radius:2px;padding:1px 6px;white-space:nowrap}
+
+  /* ---------- hero / title block ---------- */
+  .hero{padding:0 0 8px;position:relative;overflow:hidden}
+  .hero-inner{padding:78px 0 56px}
+  .nameplate{
+    font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);
+    text-transform:uppercase;margin-bottom:26px;
+  }
+  .hero h1{
+    font-family:var(--disp);font-weight:700;letter-spacing:-.02em;line-height:.98;
+    font-size:clamp(44px,8.2vw,96px);
+  }
+  .hero h1 .en{display:block;color:var(--faint);font-weight:500;
+    font-size:clamp(15px,2.4vw,26px);letter-spacing:.04em;margin-top:14px}
+  .thesis{max-width:60ch;margin-top:30px;color:var(--text);font-size:17px;line-height:1.7}
+  .thesis b{color:var(--comp);font-weight:600}
+  .thesis .hot{color:var(--alert);font-weight:600}
+
+  /* title-block grid (engineering drawing motif) */
+  .titleblock{
+    margin-top:48px;border:1px solid var(--steel);border-radius:var(--r);
+    display:grid;grid-template-columns:repeat(5,1fr);
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    overflow:hidden;
+  }
+  .titleblock .cell{padding:14px 16px;border-right:1px solid var(--steel-soft)}
+  .titleblock .cell:last-child{border-right:none}
+  .titleblock .k{font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--faint)}
+  .titleblock .v{font-family:var(--mono);font-size:14px;color:var(--text);margin-top:6px;font-weight:500}
+  .titleblock .v.ok{color:var(--comp)}
+  @media(max-width:760px){.titleblock{grid-template-columns:repeat(2,1fr)}
+    .titleblock .cell{border-bottom:1px solid var(--steel-soft)}}
+
+  /* ---------- legend ---------- */
+  .legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin:30px 0 6px;
+    font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .legend span{display:inline-flex;align-items:center;gap:8px}
+  .swatch{width:13px;height:13px;border-radius:2px;border:1px solid rgba(255,255,255,.12)}
+  .sw-c{background:var(--comp)} .sw-i{background:var(--inf)}
+  .sw-a{background:var(--alert)} .sw-n{background:var(--steel)}
+
+  /* ---------- layer triptych ---------- */
+  .floors{display:grid;grid-template-columns:1fr;gap:14px;margin-top:34px}
+  .floor{border:1px solid var(--steel);border-radius:var(--r);padding:22px 24px;
+    background:var(--panel);position:relative;display:grid;
+    grid-template-columns:88px 1fr;gap:24px;align-items:start}
+  .floor .code{font-family:var(--disp);font-weight:700;font-size:40px;line-height:1;
+    color:var(--faint)}
+  .floor h3{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:-.01em}
+  .floor p{color:var(--dim);margin-top:8px;font-size:14px;max-width:64ch}
+  .floor .kw{margin-top:12px;display:flex;flex-wrap:wrap;gap:7px}
+  .floor.l3{border-left:3px solid var(--inf)} .floor.l3 .code{color:var(--inf)}
+  .floor.l2{border-left:3px solid var(--comp)} .floor.l2 .code{color:var(--comp)}
+  .floor.l1{border-left:3px solid var(--steel)}
+  @media(max-width:620px){.floor{grid-template-columns:1fr;gap:10px}
+    .floor .code{font-size:30px}}
+
+  /* ---------- diagram frame ---------- */
+  .diagram{margin-top:34px;border:1px solid var(--steel);border-radius:var(--r);
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+      var(--panel-2);
+    background-size:26px 26px,26px 26px,auto;
+    position:relative;overflow:hidden}
+  .diagram-head{display:flex;justify-content:space-between;align-items:center;
+    padding:13px 18px;border-bottom:1px solid var(--steel-soft);
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .diagram-head .fig{color:var(--comp)}
+  .svg-scroll{overflow-x:auto;padding:8px}
+  .diagram svg{display:block;min-width:760px;width:100%;height:auto}
+  /* svg primitives */
+  .n-label{font-family:var(--mono);font-weight:500;fill:var(--text)}
+  .n-sub{font-family:var(--mono);fill:var(--dim)}
+  .n-mini{font-family:var(--mono);fill:var(--faint)}
+  .edge-label{font-family:var(--mono);fill:var(--faint)}
+  .group-label{font-family:var(--mono);fill:var(--faint);letter-spacing:.12em}
+
+  /* ---------- matrix ---------- */
+  .matrix{margin-top:32px;border:1px solid var(--steel);border-radius:var(--r);overflow:hidden}
+  .matrix table{width:100%;border-collapse:collapse;font-size:14px}
+  .matrix th,.matrix td{padding:16px 18px;text-align:left;vertical-align:top;
+    border:1px solid var(--steel-soft)}
+  .matrix thead th{background:var(--panel);font-family:var(--mono);font-weight:500;
+    font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .matrix .rowhead{background:var(--panel);font-family:var(--mono);font-size:12px;
+    color:var(--text);white-space:nowrap;width:120px}
+  .matrix .c-comp{border-top:2px solid var(--comp)}
+  .matrix .c-inf{border-top:2px solid var(--inf)}
+  .matrix td b{color:var(--text);font-weight:600;font-family:var(--mono);font-size:12px}
+  .matrix td .items{color:var(--dim);margin-top:6px;display:block;font-size:13px}
+  @media(max-width:680px){.matrix{overflow-x:auto}.matrix table{min-width:560px}}
+
+  /* ---------- panels grid ---------- */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--steel);border-radius:var(--r);background:var(--panel);padding:24px}
+  .panel.alert{border-left:3px solid var(--alert)}
+  .panel.comp{border-left:3px solid var(--comp)}
+  .panel h3{font-family:var(--disp);font-weight:600;font-size:18px;display:flex;
+    align-items:center;gap:10px}
+  .panel h3 .mono{font-size:12px;color:var(--faint);font-weight:400}
+  .panel p{color:var(--dim);font-size:14px;margin-top:10px}
+  .metric{display:flex;align-items:baseline;gap:10px;padding:11px 0;
+    border-bottom:1px solid var(--steel-soft);font-size:14px}
+  .metric:last-child{border-bottom:none}
+  .metric .mv{font-family:var(--mono);color:var(--comp);font-size:13px;margin-left:auto;
+    white-space:nowrap}
+  .metric .mv.wait{color:var(--inf)}
+  .driftbar{margin-top:16px;height:64px;position:relative;border:1px solid var(--steel-soft);
+    border-radius:2px;background:var(--panel-2);overflow:hidden}
+  .driftbar .tau{position:absolute;left:0;right:0;border-top:1px dashed var(--alert);
+    top:25%}
+  .driftbar .tau span{position:absolute;right:6px;top:-9px;font-family:var(--mono);
+    font-size:10px;color:var(--alert);background:var(--panel-2);padding:0 4px}
+  .driftbar svg{position:absolute;inset:0;width:100%;height:100%}
+
+  /* ---------- status timeline ---------- */
+  .status{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
+    gap:10px;margin-top:30px}
+  .ms{border:1px solid var(--steel);border-radius:var(--r);padding:14px;background:var(--panel)}
+  .ms .id{font-family:var(--disp);font-weight:700;font-size:18px}
+  .ms .nm{font-size:12px;color:var(--dim);margin-top:5px;line-height:1.4}
+  .ms .st{font-family:var(--mono);font-size:10px;margin-top:10px;letter-spacing:.08em}
+  .ms.done{border-left:3px solid var(--comp)} .ms.done .st{color:var(--comp)}
+  .ms.part{border-left:3px solid var(--inf)} .ms.part .st{color:var(--inf)}
+  .ms.todo{opacity:.6} .ms.todo .st{color:var(--faint)}
+
+  /* ---------- governance ---------- */
+  .gov{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:30px}
+  @media(max-width:760px){.gov{grid-template-columns:1fr}}
+  .gov .col{border:1px solid var(--steel);border-radius:var(--r);padding:24px;background:var(--panel)}
+  .gov .col.red{border-top:2px solid var(--alert)}
+  .gov .col.exec{border-top:2px solid var(--comp)}
+  .gov h3{font-family:var(--disp);font-weight:600;font-size:17px}
+  .gov .role{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:4px}
+  .gov ul{list-style:none;margin-top:16px}
+  .gov li{font-size:13.5px;color:var(--dim);padding:8px 0 8px 26px;position:relative;
+    border-bottom:1px solid var(--steel-soft)}
+  .gov li:last-child{border-bottom:none}
+  .gov li::before{position:absolute;left:0;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .gov .red li:nth-child(1)::before{content:"01"} .gov .red li:nth-child(2)::before{content:"02"}
+  .gov .red li:nth-child(3)::before{content:"03"} .gov .red li:nth-child(4)::before{content:"04"}
+  .gov .red li:nth-child(5)::before{content:"05"} .gov .red li:nth-child(6)::before{content:"06"}
+  .gov .red li:nth-child(7)::before{content:"07"}
+  .gov .exec li::before{content:"§";color:var(--comp)}
+  .gov .col b{color:var(--text)}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--steel);padding:40px 0 70px;margin-top:20px}
+  .foot-block{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+    border:1px solid var(--steel);border-radius:var(--r);overflow:hidden}
+  .foot-block .cell{padding:16px 18px;border-right:1px solid var(--steel-soft)}
+  .foot-block .cell:last-child{border-right:none}
+  .foot-block .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--faint)}
+  .foot-block .v{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin-top:6px}
+  @media(max-width:680px){.foot-block{grid-template-columns:repeat(2,1fr)}
+    .foot-block .cell{border-bottom:1px solid var(--steel-soft)}}
+
+  /* ---------- reveal ---------- */
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none}
+    html{scroll-behavior:auto}
+  }
+  a{color:var(--comp);text-decoration:none}
+</style>
+</head>
+<body>
+
+<!-- ============ HERO / TITLE BLOCK ============ -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="nameplate">Iron Hammer Squad · 架构设计图册 · Rev. 2026-06-25</div>
+    <h1>铁锤小队<span class="en">A HARNESS-LEVEL AI SDLC PIPELINE</span></h1>
+    <p class="thesis">
+      给定需求，最大限度地用 AI 团队完整跑通从需求到交付的 SDLC。追求的不是「看起来全自动」，而是
+      <b>在已知可靠性边界内，可观测、可度量、可问责地交付</b>。核心哲学：人定目标、人判质量、人担责；AI 编排执行。
+      对抗的根本问题——<span class="hot">单步误差在长链路中的复利累积（agent drift）</span>，用纪律化的 harness 把误差拦在放大之前。
+    </p>
+
+    <div class="titleblock" role="presentation">
+      <div class="cell"><div class="k">工程定位</div><div class="v">三层楼 / Loop·Harness·Compound</div></div>
+      <div class="cell"><div class="k">当前阶段</div><div class="v ok">M0–M7c 已交付</div></div>
+      <div class="cell"><div class="k">真相源</div><div class="v">OpenSpec 活规约</div></div>
+      <div class="cell"><div class="k">编排引擎</div><div class="v">Claude Code</div></div>
+      <div class="cell"><div class="k">交付物</div><div class="v">pipeline/</div></div>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch sw-c"></i>Computational · 确定性（毫秒、可每次跑）</span>
+      <span><i class="swatch sw-i"></i>Inferential · 推断（慢、贵、配强模型）</span>
+      <span><i class="swatch sw-a"></i>Drift / 告警 / 人类门 HITL</span>
+      <span><i class="swatch sw-n"></i>结构 · 数据 · 持久层</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ 三层模型 ============ -->
+<section id="layers">
+  <div class="wrap">
+    <div class="eyebrow reveal">工程定位 · §1</div>
+    <h2 class="reveal">三层楼模型：各司其职，互不冲突</h2>
+    <p class="lead reveal">
+      范围可画满整条 SDLC（① 层 scope），但 harness（② 层）从窄到宽逐步加固——<span class="mono">Start narrow, measure, then expand</span>。
+      过度约束是已知失效模式。
+    </p>
+
+    <div class="floors">
+      <div class="floor l3 reveal">
+        <div class="code">③</div>
+        <div>
+          <h3>Compound / Steering — 越用越强</h3>
+          <p>每次失败 → 人工诊断根因 → 固化进下层 → 该类错误结构性不可重现。复盘的产出物 = 对 rules / lint / gate / skill 的具体 <b style="color:var(--inf)">diff</b>，不是一份报告。这是区别于 VibeCoding（每次错了重新提示）的定义性机制。</p>
+          <div class="kw"><span class="tag">/retro</span><span class="tag">/learn</span><span class="tag">反馈固化</span></div>
+        </div>
+      </div>
+      <div class="floor l2 reveal">
+        <div class="code">②</div>
+        <div>
+          <h3>Harness — 单次执行可靠</h3>
+          <p>流水线每一步在已知边界内单次执行可靠。控制一切归两类、缺一不可：Guides（前馈，行动前引导）+ Sensors（反馈，行动后观测）+ Quality Gates（强制门）。实施顺序：约束 → 反馈循环 → 质量门。</p>
+          <div class="kw"><span class="tag">Guides</span><span class="tag">Sensors</span><span class="tag">Quality Gates</span></div>
+        </div>
+      </div>
+      <div class="floor l1 reveal">
+        <div class="code">①</div>
+        <div>
+          <h3>Loop Engineering — 无人值守反复跑 SDLC</h3>
+          <p>把「那个反复给 agent 敲提示的人」替换为一套替你做这件事的系统。外循环（工程级 SDLC）+ 内循环（单 US，最小可靠单元）。六部件：automations（触发层）/ worktrees / skills / connectors / sub-agents / state·memory。</p>
+          <div class="kw"><span class="tag">外循环</span><span class="tag">内循环</span><span class="tag">事件触发 D4</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 图 1 · 技术架构 ============ -->
+<section id="tech">
+  <div class="wrap">
+    <div class="eyebrow reveal">图 01 · 运行时系统</div>
+    <h2 class="reveal">技术架构：从触发到合并的可回放流水线</h2>
+    <p class="lead reveal">
+      编排层 = Claude Code（与 Agent SDK 同引擎）；触发层 = 自建轻量事件胶水。中轴是一个 US 的生命周期；左右两栏是横切的真相源、知识接地、度量与持久层。
+    </p>
+
+    <div class="diagram reveal">
+      <div class="diagram-head"><span class="fig">FIG.01 — TECHNICAL ARCHITECTURE</span><span>pipeline/ · driver + metrics + roles + gates</span></div>
+      <div class="svg-scroll">
+        <svg viewBox="0 0 1060 860" role="img" aria-label="技术架构图">
+          <defs>
+            <marker id="ah-n" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#54616E"/></marker>
+            <marker id="ah-c" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#35B7C2"/></marker>
+            <marker id="ah-a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#EF5B53"/></marker>
+          </defs>
+
+          <!-- ====== LEFT RAIL ====== -->
+          <text x="40" y="40" class="group-label" font-size="11">真相源 · 知识 · 角色</text>
+          <!-- OpenSpec SoT -->
+          <rect x="40" y="54" width="210" height="58" rx="3" fill="#11171E" stroke="#233040"/>
+          <rect x="40" y="54" width="3" height="58" fill="#35B7C2"/>
+          <text x="58" y="80" class="n-label" font-size="14">OpenSpec 活规约</text>
+          <text x="58" y="99" class="n-sub" font-size="11">单一真相源 SoT · validate --strict</text>
+          <!-- KB grounding -->
+          <rect x="40" y="124" width="210" height="58" rx="3" fill="#11171E" stroke="#233040"/>
+          <rect x="40" y="124" width="3" height="58" fill="#E0A03A"/>
+          <text x="58" y="150" class="n-label" font-size="14">KB Grounding</text>
+          <text x="58" y="169" class="n-sub" font-size="11">ai-dev-learning · wiki-query</text>
+          <!-- roles -->
+          <rect x="40" y="194" width="210" height="164" rx="3" fill="#11171E" stroke="#233040"/>
+          <rect x="40" y="194" width="3" height="164" fill="#E0A03A"/>
+          <text x="58" y="216" class="n-label" font-size="14">角色 Agent · pipeline/roles（8）</text>
+          <text x="58" y="237" class="n-sub" font-size="11">product-clarify · test · dev</text>
+          <text x="58" y="255" class="n-sub" font-size="11">review · security-review</text>
+          <text x="58" y="273" class="n-sub" font-size="11">design-soundness（前·杠杆1）</text>
+          <text x="58" y="291" class="n-sub" font-size="11">acceptance（后·杠杆2）· ui</text>
+          <text x="58" y="328" class="n-mini" font-size="10">角色不混同（红线4）· 技能按需披露</text>
+
+          <!-- ====== CENTER SPINE ====== -->
+          <text x="370" y="40" class="group-label" font-size="11">单 US 生命周期</text>
+
+          <!-- trigger -->
+          <rect x="370" y="54" width="320" height="56" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="386" y="79" class="n-label" font-size="14">① 触发层 · Trigger（事件驱动 D4）</text>
+          <text x="386" y="98" class="n-sub" font-size="11">Hooks + 文件监听/本地 cron + claude -p</text>
+
+          <!-- orchestrator -->
+          <rect x="370" y="138" width="320" height="64" rx="3" fill="#11171E" stroke="#E0A03A"/>
+          <text x="386" y="164" class="n-label" font-size="14">编排层 · Claude Code（orchestrator）</text>
+          <text x="386" y="184" class="n-sub" font-size="11">Planner–Workers–Judge · Delegate · subagents</text>
+          <line x1="530" y1="110" x2="530" y2="136" stroke="#54616E" stroke-width="1.4" marker-end="url(#ah-n)"/>
+          <text x="540" y="127" class="edge-label" font-size="10">events</text>
+
+          <!-- queue -->
+          <rect x="370" y="230" width="320" height="56" rx="3" fill="#11171E" stroke="#35B7C2"/>
+          <text x="386" y="255" class="n-label" font-size="14">消息队列 · SQLite-MCP</text>
+          <text x="386" y="274" class="n-sub" font-size="11">事务原子认领 + WAL 崩溃恢复（D9）</text>
+          <line x1="530" y1="202" x2="530" y2="228" stroke="#54616E" stroke-width="1.4" marker-end="url(#ah-n)"/>
+          <text x="540" y="219" class="edge-label" font-size="10">enqueue</text>
+
+          <!-- worker / inner loop -->
+          <rect x="340" y="314" width="380" height="356" rx="3" fill="#0F141A" stroke="#233040" stroke-dasharray="3 3"/>
+          <text x="356" y="336" class="group-label" font-size="11">Worker × N · git worktree 隔离（军规3）— 内循环</text>
+          <line x1="530" y1="286" x2="530" y2="312" stroke="#35B7C2" stroke-width="1.4" marker-end="url(#ah-c)"/>
+          <text x="540" y="303" class="edge-label" font-size="10">claim · N 路并行</text>
+
+          <!-- inner-loop pills -->
+          <g font-size="12.5">
+            <rect x="362" y="350" width="336" height="36" rx="3" fill="#11171E" stroke="#E0A03A"/>
+            <text x="378" y="373" class="n-label" font-size="12.5">测试 Agent 先写用例 · RED</text>
+            <rect x="362" y="394" width="336" height="36" rx="3" fill="#11171E" stroke="#E0A03A"/>
+            <text x="378" y="417" class="n-label" font-size="12.5">开发 Agent · TDD 实现 · GREEN</text>
+            <rect x="362" y="438" width="336" height="36" rx="3" fill="#11171E" stroke="#35B7C2"/>
+            <text x="378" y="461" class="n-label" font-size="12.5">Plan-Alignment Gate（PEV）</text>
+            <rect x="362" y="482" width="336" height="36" rx="3" fill="#11171E" stroke="#35B7C2"/>
+            <text x="378" y="505" class="n-label" font-size="12.5">确定性门 · lint / tsc / test / 变异</text>
+            <rect x="362" y="526" width="336" height="36" rx="3" fill="#11171E" stroke="#35B7C2"/>
+            <text x="378" y="549" class="n-label" font-size="12.5">安全门 · 密钥扫描 / 敏感面分类</text>
+            <rect x="362" y="570" width="336" height="36" rx="3" fill="#11171E" stroke="#E0A03A"/>
+            <text x="378" y="593" class="n-label" font-size="12.5">评审 Agent · 计划 + 代码（两遍）</text>
+            <rect x="362" y="614" width="336" height="36" rx="3" fill="#11171E" stroke="#233040"/>
+            <text x="378" y="637" class="n-label" font-size="12.5">动态 squash · 捕获实际改动</text>
+          </g>
+
+          <!-- integration -->
+          <rect x="370" y="694" width="320" height="56" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="386" y="719" class="n-label" font-size="14">集成分支（军规8 兜底）</text>
+          <text x="386" y="738" class="n-sub" font-size="11">drainBatchIsolated → pre_merge hook → 全绿</text>
+          <line x1="530" y1="670" x2="530" y2="692" stroke="#54616E" stroke-width="1.4" marker-end="url(#ah-n)"/>
+          <text x="540" y="685" class="edge-label" font-size="10">feat-a/b/c</text>
+
+          <!-- main -->
+          <rect x="370" y="778" width="320" height="58" rx="3" fill="#11171E" stroke="#EF5B53"/>
+          <text x="386" y="804" class="n-label" font-size="14">main · 分支保护（军规2）</text>
+          <text x="386" y="823" class="n-sub" font-size="11">人按下 Merge 才问责（军规1）</text>
+          <line x1="530" y1="750" x2="530" y2="776" stroke="#EF5B53" stroke-width="1.4" marker-end="url(#ah-a)"/>
+          <text x="540" y="767" class="edge-label" font-size="10" fill="#EF5B53">squash · HITL 人签</text>
+
+          <!-- ====== RIGHT RAIL ====== -->
+          <text x="810" y="40" class="group-label" font-size="11">度量 · 持久层（外置）</text>
+          <!-- sensors / metrics -->
+          <rect x="810" y="54" width="210" height="200" rx="3" fill="#11171E" stroke="#35B7C2"/>
+          <rect x="810" y="54" width="3" height="200" fill="#35B7C2"/>
+          <text x="828" y="78" class="n-label" font-size="14">Sensors · pipeline/metrics</text>
+          <text x="828" y="100" class="n-sub" font-size="11">events.jsonl → traces 织链</text>
+          <text x="828" y="118" class="n-sub" font-size="11">Verification Tax · Defect feed</text>
+          <text x="828" y="140" class="n-sub" font-size="11">drift: 工具序列 (M7-a)</text>
+          <text x="828" y="158" class="n-sub" font-size="11">　　　人工干预率 (M7-b)</text>
+          <text x="828" y="176" class="n-sub" font-size="11">　　　语义相似度 (M7-c)</text>
+          <text x="828" y="198" class="n-sub" font-size="11">→ 看板 dashboard</text>
+          <text x="828" y="226" class="n-mini" font-size="10">全链路 traceId 可回放</text>
+          <text x="828" y="244" class="n-mini" font-size="10">无数据 → insufficient-data</text>
+
+          <!-- persistence -->
+          <rect x="810" y="266" width="210" height="118" rx="3" fill="#11171E" stroke="#233040"/>
+          <rect x="810" y="266" width="3" height="118" fill="#233040"/>
+          <text x="828" y="290" class="n-label" font-size="14">持久层 · durable</text>
+          <text x="828" y="312" class="n-sub" font-size="11">session log + 外部记忆</text>
+          <text x="828" y="330" class="n-sub" font-size="11">runs-ledger.jsonl</text>
+          <text x="828" y="348" class="n-sub" font-size="11">claude-obsidian vault</text>
+          <text x="828" y="370" class="n-mini" font-size="10">getEvents 按需注入</text>
+
+          <!-- dashed couplings -->
+          <line x1="250" y1="83" x2="368" y2="166" stroke="#35B7C2" stroke-width="1" stroke-dasharray="2 3" opacity=".5"/>
+          <line x1="250" y1="250" x2="360" y2="430" stroke="#E0A03A" stroke-width="1" stroke-dasharray="2 3" opacity=".4"/>
+          <line x1="690" y1="490" x2="808" y2="150" stroke="#35B7C2" stroke-width="1" stroke-dasharray="2 3" opacity=".4"/>
+          <line x1="690" y1="640" x2="808" y2="320" stroke="#54616E" stroke-width="1" stroke-dasharray="2 3" opacity=".4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 图 2 · Harness 工程架构 ============ -->
+<section id="harness">
+  <div class="wrap">
+    <div class="eyebrow reveal">图 02 · Harness 设计</div>
+    <h2 class="reveal">Harness 工程架构：把误差拦在放大之前</h2>
+    <p class="lead reveal">
+      三层楼如何组织成一个会自我加固的控制系统。② 层的 Sensors 探测、③ 层诊断根因、把修复 <span class="mono">固化</span> 回 ① / ② ——
+      这个 Steering 回路是 harness 的灵魂，也是它「越用越强」的来源。
+    </p>
+
+    <div class="diagram reveal">
+      <div class="diagram-head"><span class="fig">FIG.02 — HARNESS ENGINEERING</span><span>Steering Loop · 控制矩阵 · Drift 防御</span></div>
+      <div class="svg-scroll">
+        <svg viewBox="0 0 1060 760" role="img" aria-label="Harness 工程架构图">
+          <defs>
+            <marker id="bh-n" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#54616E"/></marker>
+            <marker id="bh-i" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#E0A03A"/></marker>
+            <marker id="bh-c" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#35B7C2"/></marker>
+          </defs>
+
+          <!-- floor 3 -->
+          <rect x="40" y="40" width="700" height="118" rx="3" fill="#11171E" stroke="#E0A03A"/>
+          <text x="60" y="70" class="n-label" font-size="16" font-family="'Space Grotesk',sans-serif" font-weight="600">③ Compound / Steering — 越用越强</text>
+          <text x="60" y="95" class="n-sub" font-size="12">出错 → 人工诊断根因 → 固化进 Guide/Sensor/Gate → 该类错误结构性不可重现</text>
+          <rect x="60" y="110" width="180" height="34" rx="3" fill="#0F141A" stroke="#233040"/>
+          <text x="74" y="132" class="n-mini" font-size="11" fill="#E0A03A">产物 = rules/lint/gate diff</text>
+          <rect x="252" y="110" width="150" height="34" rx="3" fill="#0F141A" stroke="#233040"/>
+          <text x="266" y="132" class="n-mini" font-size="11">/retro · /learn</text>
+          <rect x="414" y="110" width="200" height="34" rx="3" fill="#0F141A" stroke="#233040"/>
+          <text x="428" y="132" class="n-mini" font-size="11">记忆即行为锚点 ASI +21%</text>
+
+          <!-- floor 2 -->
+          <rect x="40" y="186" width="700" height="226" rx="3" fill="#11171E" stroke="#35B7C2"/>
+          <text x="60" y="216" class="n-label" font-size="16" font-family="'Space Grotesk',sans-serif" font-weight="600">② Harness — 单次执行可靠</text>
+          <text x="60" y="240" class="n-sub" font-size="12">控制矩阵：Guides（前馈）/ Sensors（反馈）× Computational / Inferential — 缺一不可</text>
+          <!-- mini 2x2 -->
+          <g font-size="11">
+            <rect x="60" y="256" width="300" height="60" rx="3" fill="#0F141A" stroke="#1A2530"/>
+            <text x="74" y="277" class="n-mini" font-size="10" fill="#E0A03A">GUIDES · 前馈</text>
+            <text x="74" y="296" class="n-sub" font-size="11">类型系统 · 架构 lint · Always/Never</text>
+            <text x="74" y="311" class="n-sub" font-size="11">CLAUDE.md · Skills · Architecture.md</text>
+
+            <rect x="372" y="256" width="342" height="60" rx="3" fill="#0F141A" stroke="#1A2530"/>
+            <text x="386" y="277" class="n-mini" font-size="10" fill="#35B7C2">SENSORS · 反馈</text>
+            <text x="386" y="296" class="n-sub" font-size="11">linter · 测试 · 覆盖率 · 变异测试</text>
+            <text x="386" y="311" class="n-sub" font-size="11">AI review · LLM-as-judge · 语义重复</text>
+          </g>
+          <!-- quality gates bar -->
+          <rect x="60" y="326" width="654" height="34" rx="3" fill="#0F141A" stroke="#35B7C2"/>
+          <text x="74" y="348" class="n-label" font-size="12">Quality Gates · 强制门 — 密钥 / 敏感面 / Plan-Align / 变异 / 集成全绿</text>
+          <text x="60" y="388" class="n-mini" font-size="11" fill="#7C8A98">实施顺序（从窄到宽）：约束（前馈） → 反馈循环（纠正） → 质量门（强制）。lint 消息本身作为 prompt 回灌。</text>
+
+          <!-- floor 1 -->
+          <rect x="40" y="440" width="700" height="118" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="60" y="470" class="n-label" font-size="16" font-family="'Space Grotesk',sans-serif" font-weight="600">① Loop Engineering — 无人值守反复跑 SDLC</text>
+          <text x="60" y="494" class="n-sub" font-size="12">外循环（工程级 SDLC：澄清 → 架构/NFR → US 拆分 → 内循环并行 → 发布 → 复盘）</text>
+          <text x="60" y="514" class="n-sub" font-size="12">内循环（单 US，最小可靠单元：RED → GREEN → gates → review → squash）</text>
+          <rect x="60" y="524" width="654" height="22" rx="3" fill="#0F141A" stroke="#1A2530"/>
+          <text x="74" y="539" class="n-mini" font-size="10">automations · worktrees · skills · connectors · sub-agents · state/memory</text>
+
+          <!-- STEERING LOOP arrows (right side, wrapping ② -> ③ -> ①) -->
+          <path d="M744,300 C 840,300 840,150 746,99" fill="none" stroke="#35B7C2" stroke-width="1.6" marker-end="url(#bh-c)"/>
+          <text x="852" y="200" class="edge-label" font-size="11" fill="#35B7C2" transform="rotate(90 852 200)">sensors 探测漂移</text>
+          <path d="M744,99 C 900,120 900,500 746,499" fill="none" stroke="#E0A03A" stroke-width="1.6" marker-end="url(#bh-i)"/>
+          <text x="916" y="300" class="edge-label" font-size="11" fill="#E0A03A" transform="rotate(90 916 300)">固化 → 回灌 ① / ②</text>
+
+          <!-- DRIFT DEFENSE sidebar -->
+          <rect x="788" y="440" width="232" height="280" rx="3" fill="#11171E" stroke="#EF5B53"/>
+          <rect x="788" y="440" width="232" height="3" fill="#EF5B53"/>
+          <text x="806" y="470" class="n-label" font-size="14" fill="#EF5B53">Agent Drift 防御 · §6</text>
+          <text x="806" y="492" class="n-sub" font-size="11">根命题：单步误差</text>
+          <text x="806" y="508" class="n-sub" font-size="11">长链路复利累积</text>
+          <line x1="806" y1="520" x2="1002" y2="520" stroke="#1A2530"/>
+          <text x="806" y="540" class="n-mini" font-size="11">~200 交互 robust→brittle</text>
+          <text x="806" y="558" class="n-mini" font-size="11">成功率 87.3%→50.6%</text>
+          <text x="806" y="582" class="n-sub" font-size="11" fill="#35B7C2">ASI sensors（τ=0.75）</text>
+          <text x="806" y="600" class="n-mini" font-size="11">语义 / 共识 / 工具序列</text>
+          <text x="806" y="618" class="n-mini" font-size="11">滚动 50 窗 · 连续三窗</text>
+          <line x1="806" y1="630" x2="1002" y2="630" stroke="#1A2530"/>
+          <text x="806" y="650" class="n-mini" font-size="11">两级拓扑 router+specialists</text>
+          <text x="806" y="668" class="n-mini" font-size="11">记忆锚点 · EMC / ABA / DAR</text>
+          <text x="806" y="694" class="n-mini" font-size="10" fill="#54616E">overhead +23% · retain 94.7%</text>
+          <text x="806" y="710" class="n-mini" font-size="10" fill="#54616E">真信号待长程任务测试</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 图 3 · 合目的性双关 ============ -->
+<section id="purpose">
+  <div class="wrap">
+    <div class="eyebrow reveal">图 03 · 合目的性双关 · 2026-06</div>
+    <h2 class="reveal">一份评审产物，喂两个时点：实现前测试 + 实现后验收</h2>
+    <p class="lead reveal">
+      确定性功能门只验「正确性」，验不出「目的是否达成」（issue#12）；UI 更无确定性功能门（issue#9）。
+      解法不是再加一道盲门，而是让 <span class="mono">design-soundness</span> 评审在<b>实现前</b>产出结构化
+      <span class="mono">DesignFindings</span>——「可测」半边喂确定性测试（杠杆1），「不可测」半边喂实现后验收（杠杆2）。同一份评审，两个时点，零重复。
+    </p>
+
+    <div class="diagram reveal">
+      <div class="diagram-head"><span class="fig">FIG.03 — DESIGN-SOUNDNESS × ACCEPTANCE</span><span>design-findings.ts · acceptance.ts · 三级 verdict</span></div>
+      <div class="svg-scroll">
+        <svg viewBox="0 0 1060 662" role="img" aria-label="合目的性双关图">
+          <defs>
+            <marker id="ch-n" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#54616E"/></marker>
+            <marker id="ch-c" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#35B7C2"/></marker>
+            <marker id="ch-i" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#E0A03A"/></marker>
+            <marker id="ch-a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#EF5B53"/></marker>
+          </defs>
+
+          <!-- spec slice -->
+          <rect x="430" y="40" width="200" height="42" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="530" y="66" class="n-label" font-size="13" text-anchor="middle">规约切片 · OpenSpec SoT</text>
+          <line x1="530" y1="82" x2="530" y2="102" stroke="#54616E" stroke-width="1.4" marker-end="url(#ch-n)"/>
+
+          <!-- design-soundness agent -->
+          <rect x="392" y="104" width="276" height="56" rx="3" fill="#11171E" stroke="#E0A03A"/>
+          <rect x="392" y="104" width="3" height="56" fill="#E0A03A"/>
+          <text x="532" y="128" class="n-label" font-size="13" text-anchor="middle">design-soundness-agent · 实现前对抗评审</text>
+          <text x="532" y="147" class="n-sub" font-size="11" text-anchor="middle">只读规约 · 不阻塞 · IH_DESIGN_REVIEW off/auto/block</text>
+          <line x1="530" y1="160" x2="530" y2="181" stroke="#E0A03A" stroke-width="1.4" marker-end="url(#ch-i)"/>
+
+          <!-- DesignFindings -->
+          <rect x="360" y="183" width="340" height="104" rx="3" fill="#11171E" stroke="#35B7C2"/>
+          <rect x="360" y="183" width="3" height="104" fill="#35B7C2"/>
+          <text x="376" y="206" class="n-label" font-size="13">DesignFindings · 结构化产物（design-findings.ts）</text>
+          <text x="376" y="227" class="n-sub" font-size="11">intentRestatement · failureModes[] · suggestedAcceptance[]</text>
+          <rect x="376" y="240" width="152" height="36" rx="3" fill="#0F141A" stroke="#1d3a40"/>
+          <text x="452" y="262" class="n-mini" font-size="10.5" fill="#35B7C2" text-anchor="middle">antiGoals · testable=true</text>
+          <rect x="538" y="240" width="150" height="36" rx="3" fill="#0F141A" stroke="#3a2f17"/>
+          <text x="613" y="262" class="n-mini" font-size="10.5" fill="#E0A03A" text-anchor="middle">testable=false ＋验收建议</text>
+
+          <!-- split -->
+          <path d="M452,276 C 452,312 232,302 232,330" fill="none" stroke="#35B7C2" stroke-width="1.5" marker-end="url(#ch-c)"/>
+          <path d="M613,276 C 613,312 829,302 829,330" fill="none" stroke="#E0A03A" stroke-width="1.5" marker-end="url(#ch-i)"/>
+
+          <!-- center note -->
+          <rect x="455" y="338" width="150" height="42" rx="3" fill="#0F141A" stroke="#1A2530"/>
+          <text x="530" y="357" class="n-mini" font-size="10" text-anchor="middle">同一 DesignFindings</text>
+          <text x="530" y="372" class="n-mini" font-size="10" text-anchor="middle">两个时点 · 零重复评审</text>
+
+          <!-- LEFT LANE · 杠杆1 -->
+          <text x="70" y="322" class="group-label" font-size="11" fill="#35B7C2">杠杆1 · 实现前测试</text>
+          <rect x="70" y="332" width="322" height="56" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="86" y="356" class="n-label" font-size="12.5">testable 反目标 → 注入 test phase</text>
+          <text x="86" y="375" class="n-sub" font-size="11">prompts.ts antiGoals · resolveDesignReview</text>
+          <line x1="231" y1="388" x2="231" y2="409" stroke="#35B7C2" stroke-width="1.4" marker-end="url(#ch-c)"/>
+          <rect x="70" y="410" width="322" height="60" rx="3" fill="#11171E" stroke="#35B7C2"/>
+          <rect x="70" y="410" width="3" height="60" fill="#35B7C2"/>
+          <text x="86" y="434" class="n-label" font-size="12.5">test-agent 写确定性测试 · 钉死『不发生』</text>
+          <text x="86" y="453" class="n-sub" font-size="11">含 UI 组件测试（@testing-library）→ 补 issue#9</text>
+          <text x="86" y="488" class="n-mini" font-size="10.5" fill="#54616E">↳ 汇入内循环 RED→GREEN（见 FIG.01）· 回归被钉死</text>
+
+          <!-- RIGHT LANE · 杠杆2 -->
+          <text x="668" y="322" class="group-label" font-size="11" fill="#E0A03A">杠杆2 · 实现后验收</text>
+          <rect x="668" y="332" width="322" height="52" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="684" y="354" class="n-label" font-size="12.5">非testable ＋验收建议 ＋失败模式</text>
+          <text x="684" y="372" class="n-sub" font-size="11">总持久化 design-findings.json（每个 US）</text>
+          <line x1="829" y1="384" x2="829" y2="403" stroke="#54616E" stroke-width="1.4" marker-end="url(#ch-n)"/>
+          <rect x="668" y="404" width="322" height="52" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="684" y="426" class="n-label" font-size="12.5">epic 收口 · aggregateAcceptanceItems</text>
+          <text x="684" y="444" class="n-sub" font-size="11">聚合多 US ＋ epic 级补刀 → 验收清单</text>
+          <line x1="829" y1="456" x2="829" y2="475" stroke="#54616E" stroke-width="1.4" marker-end="url(#ch-n)"/>
+          <rect x="668" y="476" width="322" height="54" rx="3" fill="#11171E" stroke="#E0A03A"/>
+          <rect x="668" y="476" width="3" height="54" fill="#E0A03A"/>
+          <text x="684" y="500" class="n-label" font-size="12.5">acceptance-agent · playwright 视觉验收</text>
+          <text x="684" y="518" class="n-sub" font-size="11">证据＋初判 · IH_ACCEPTANCE off/block/auto</text>
+          <line x1="829" y1="530" x2="829" y2="548" stroke="#E0A03A" stroke-width="1.4" marker-end="url(#ch-i)"/>
+
+          <!-- three-tier verdict -->
+          <rect x="668" y="550" width="100" height="46" rx="3" fill="#11171E" stroke="#EF5B53"/>
+          <text x="718" y="571" class="n-label" font-size="11.5" fill="#EF5B53" text-anchor="middle">blocker</text>
+          <text x="718" y="588" class="n-mini" font-size="9.5" text-anchor="middle">升级人类</text>
+          <rect x="778" y="550" width="104" height="46" rx="3" fill="#11171E" stroke="#233040"/>
+          <text x="830" y="571" class="n-label" font-size="11.5" text-anchor="middle">advise</text>
+          <text x="830" y="588" class="n-mini" font-size="9.5" text-anchor="middle">归档不阻 · #13</text>
+          <rect x="892" y="550" width="98" height="46" rx="3" fill="#11171E" stroke="#35B7C2"/>
+          <text x="941" y="571" class="n-label" font-size="11.5" fill="#35B7C2" text-anchor="middle">pass</text>
+          <text x="941" y="588" class="n-mini" font-size="9.5" text-anchor="middle">放行</text>
+          <text x="668" y="544" class="edge-label" font-size="10">resolveAcceptance 三级分流 →</text>
+
+          <!-- footer strip -->
+          <rect x="40" y="614" width="980" height="34" rx="3" fill="#0F141A" stroke="#1A2530"/>
+          <text x="56" y="635" class="n-mini" font-size="11">收编 issue#9（UI epic 视觉门）· #12（合目的性可验）· #13（advise 升级可见、不阻塞叶子 US）　|　红线4 验收员≠实现者 · 红线6 blocker 升级人类</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 控制矩阵 ============ -->
+<section id="matrix">
+  <div class="wrap">
+    <div class="eyebrow reveal">控制矩阵 · §4.1</div>
+    <h2 class="reveal">Guides / Sensors × Computational / Inferential</h2>
+    <p class="lead reveal">
+      战略：computational sensors 便宜到可随每次变更实时跑；inferential 控制谨慎用、配强模型时可放更高自治度。
+    </p>
+    <div class="matrix reveal">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th class="c-comp">Computational — 确定、毫秒、可每次跑</th>
+            <th class="c-inf">Inferential — 慢、贵、非确定，配强模型</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="rowhead">Guides<br>前馈 · 行动前</td>
+            <td><b>结构性引导</b><span class="items">类型系统 · 架构 lint · CodeMod · Always/Never 规则</span></td>
+            <td><b>语境引导</b><span class="items">CLAUDE.md / AGENTS.md · Skills · Architecture.md</span></td>
+          </tr>
+          <tr>
+            <td class="rowhead">Sensors<br>反馈 · 行动后</td>
+            <td><b>确定性观测</b><span class="items">linter · 测试 · 覆盖率 · 变异测试 · 结构分析 · 密钥/敏感面扫描</span></td>
+            <td><b>推断性观测</b><span class="items">AI code review · LLM-as-judge · STRIDE 安全评审 · 合目的性评审（前·design-soundness）· 验收评审（后·acceptance·playwright）</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Drift + 可观测 ============ -->
+<section id="observe">
+  <div class="wrap">
+    <div class="eyebrow reveal">可观测性 · §6 / §7</div>
+    <h2 class="reveal">度量它，才能问责它</h2>
+    <div class="grid2">
+      <div class="panel comp reveal">
+        <h3>Harness 四指标 <span class="mono">§7 · 无标准基线，需产线标定</span></h3>
+        <div class="metric">Task Resolution Rate · 任务解决率 <span class="mv">已埋点</span></div>
+        <div class="metric">Code Churn · 返工率 <span class="mv">已埋点</span></div>
+        <div class="metric">Verification Tax · 验证开销占比 <span class="mv">events 派生</span></div>
+        <div class="metric">Defect Escape Rate · 逃逸缺陷率 <span class="mv">trailer 派生</span></div>
+        <p>过度约束的关键探针是 Verification Tax——验证耗时占比过高，说明 harness 勒得太紧。</p>
+      </div>
+      <div class="panel alert reveal">
+        <h3>ASI Drift 监控 <span class="mono">τ=0.75 · 连续三窗</span></h3>
+        <div class="driftbar" aria-hidden="true">
+          <div class="tau"><span>τ = 0.75</span></div>
+          <svg viewBox="0 0 300 64" preserveAspectRatio="none">
+            <polyline points="6,14 50,15 96,16 142,30 188,44 240,56 294,60" fill="none" stroke="#EF5B53" stroke-width="1.6"/>
+            <circle cx="142" cy="30" r="2.6" fill="#EF5B53"/><circle cx="188" cy="44" r="2.6" fill="#EF5B53"/><circle cx="240" cy="56" r="2.6" fill="#EF5B53"/>
+          </svg>
+        </div>
+        <div class="metric">工具序列一致性 · Levenshtein <span class="mv">M7-a ✅</span></div>
+        <div class="metric">人工干预率 · HIR（终极指标） <span class="mv">M7-b ✅</span></div>
+        <div class="metric">语义相似度 · embedding cosine <span class="mv">M7-c ✅</span></div>
+        <p>当前未做长程任务测试 → 真信号为 <span class="mono" style="color:var(--inf)">insufficient-data</span>，机制建好不臆造已发生 drift（红线1）。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 实现状态 ============ -->
+<section id="status">
+  <div class="wrap">
+    <div class="eyebrow reveal">交付状态 · 2026-06-29</div>
+    <h2 class="reveal">能力 backlog：从窄到宽</h2>
+    <p class="lead reveal">每个切片走同一节奏：拿 backlog → OpenSpec 写规约 → TDD 实现 → 确定性 gate → 短命快合。</p>
+    <div class="status">
+      <div class="ms done reveal"><div class="id">M0–M3</div><div class="nm">内循环 / squash / 统一事件日志 / 追溯织链</div><div class="st">● 封板</div></div>
+      <div class="ms done reveal"><div class="id">M4+</div><div class="nm">可观测闭环：VTax / Defect / ledger / 报告</div><div class="st">● 封板</div></div>
+      <div class="ms done reveal"><div class="id">M5</div><div class="nm">并行内循环 + SQLite-MCP + worktree 集成</div><div class="st">● 封板</div></div>
+      <div class="ms part reveal"><div class="id">M6</div><div class="nm">NFR 门 + 安全门（密钥/敏感/STRIDE）</div><div class="st">◐ 主体完成</div></div>
+      <div class="ms done reveal"><div class="id">M7-a</div><div class="nm">drift · 工具序列一致性</div><div class="st">● 完成</div></div>
+      <div class="ms done reveal"><div class="id">M7-b</div><div class="nm">drift · 人工干预率 HIR</div><div class="st">● 完成</div></div>
+      <div class="ms done reveal"><div class="id">M7-c</div><div class="nm">drift · 语义相似度（纯核+接口）</div><div class="st">● 完成</div></div>
+      <div class="ms done reveal"><div class="id">杠杆1</div><div class="nm">合目的性 · 反目标→确定性测试自动管道（含 UI 组件测试）</div><div class="st">● 收口</div></div>
+      <div class="ms done reveal"><div class="id">杠杆2-2a</div><div class="nm">验收关纯核（聚合/解析/三级分流）＋ findings 总持久化 ＋ 验收 agent 角色</div><div class="st">● 合入</div></div>
+      <div class="ms todo reveal"><div class="id">杠杆2-2b</div><div class="nm">epic 验收入口 bin-acceptance ＋ playwright 真 e2e ＋ 清单↔verdict 全覆盖校验</div><div class="st">○ 待启动</div></div>
+      <div class="ms todo reveal"><div class="id">M8</div><div class="nm">自演进回灌（Steering Loop 自动化）</div><div class="st">○ 待启动</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 治理分层 ============ -->
+<section id="gov">
+  <div class="wrap">
+    <div class="eyebrow reveal">治理 · 两套规则的分层</div>
+    <h2 class="reveal">7 红线（原则层） / 8 军规（执行层）</h2>
+    <p class="lead reveal">两层独立编号、互补不冲突；万一抵触，以红线为准并升级人类调整军规。引用务必带前缀，严禁裸用数字。</p>
+    <div class="gov">
+      <div class="col red reveal">
+        <h3>核心禁止事项 · 高层红线</h3>
+        <div class="role">原则层 — 贯穿全 SDLC，定「什么不可逾越」</div>
+        <ul>
+          <li>禁止臆造：不编造无来源的数字/事实/决策</li>
+          <li>禁止跳过 KB：AI 领域决策前必先查知识库</li>
+          <li>禁止一次性拉满：harness 从窄到宽</li>
+          <li>禁止角色混同：写测试 ≠ 写实现</li>
+          <li>禁止弱化测试：变更测试需独立记录与门禁</li>
+          <li>禁止替人拍板：未知/缺信息 → 阻塞升级</li>
+          <li>人类门禁不可绕过：范围/架构/安全/部署须签字</li>
+        </ul>
+      </div>
+      <div class="col exec reveal">
+        <h3>驭手 8 军规 · Git 执行护栏</h3>
+        <div class="role">执行层 — 定「在 Git 上怎么落地」</div>
+        <ul>
+          <li><b>智能体只提议</b>——合并是 HITL 决策点</li>
+          <li><b>隔离一切</b>——绝不直接动 main，AI PR 加严审查</li>
+          <li><b>Worktree 并行</b>——端口/DB/密钥也各自独立</li>
+          <li><b>短命快合</b>——几小时到几天合回主干</li>
+          <li><b>Feature Flags</b>——半成品安全合入</li>
+          <li><b>规范命名 + 提交</b>——提交捕捉「为什么」</li>
+          <li><b>严格审查</b>——永远看 diff，讲不清就不发布</li>
+          <li><b>集成分支兜底</b>——汇总全绿再合 main</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-block">
+      <div class="cell"><div class="k">文档</div><div class="v">铁锤小队 · 架构设计图册 · 06-29</div></div>
+      <div class="cell"><div class="k">真相源</div><div class="v">构思 v4 · OpenSpec · 杠杆 spec</div></div>
+      <div class="cell"><div class="k">核心哲学</div><div class="v">人定目标 · 人判质量 · 人担责</div></div>
+      <div class="cell"><div class="k">对抗目标</div><div class="v">agent drift · 误差复利累积</div></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var els = document.querySelectorAll('.reveal');
+    if(rm || !('IntersectionObserver' in window)){
+      els.forEach(function(e){e.classList.add('in')}); return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+    els.forEach(function(e){io.observe(e)});
+  })();
+</script>
+</body>
+</html>
