@@ -72,3 +72,14 @@ export function parseDesignFindings(raw: string): DesignFindings {
 
   return { intentRestatement: m.intentRestatement, antiGoals, failureModes, suggestedAcceptance };
 }
+
+/** 纯:取 testable 反目标的 desc（杠杆1:这些自动注入 test phase，由 test-agent 写成确定性测试）。 */
+export function extractTestableAntiGoals(findings: DesignFindings): string[] {
+  return findings.antiGoals.filter((a) => a.testable).map((a) => a.desc);
+}
+
+/** 纯:从 agent 输出提取 JSON 串（LLM 常把 JSON 包进 markdown ```json 块）。无 fence 则返回 trim 后原文。 */
+export function extractJsonBlock(text: string): string {
+  const inner = text.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1];
+  return (inner ?? text).trim();
+}

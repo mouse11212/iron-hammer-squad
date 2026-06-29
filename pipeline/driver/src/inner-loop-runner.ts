@@ -10,7 +10,8 @@ import { parseVerdict } from './verdict.js';
 import { makeWorktreeManager, type WorktreeManager, type BatchIntegrateResult } from './worktree.js';
 import { renderHandoffReport } from './handoff.js';
 import { makeOrchestratorFix } from './orchestrator-fix.js';
-import { makeEventSink, type EventSink } from './events.js';
+import { makeEventSink, makeEvent, type EventSink } from './events.js';
+import { parseDesignFindings, extractTestableAntiGoals, extractJsonBlock } from './design-findings.js';
 import { instrumentRunPhase, instrumentGateCmd, instrumentOrchestratorFix, emitSquash, emitIntegrate } from './instrument.js';
 import { squashMessage } from './squash-message.js';
 import { aggregatePhaseMs } from './aggregate-phase-ms.js';
@@ -152,6 +153,50 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
     projectDir: spec.projectDir,
     verdictPath,
   };
+
+  // 杠杆1-1b:design-soundness 前置评审(合目的性)。IH_DESIGN_REVIEW:
+  //   off(默认)=跳过零回归;auto=全自动跑+注入;block=跑+注入(1b-ii 补完整人审检查点,本切片先全采纳并标记待人审)。
+  // 跑独立对抗评审 agent → extractJsonBlock → parseDesignFindings → testable 反目标注入 context.antiGoals
+  //   (test phase 据 test-agent guide 杠杆1 写成确定性测试)。降级:任何失败→记录并继续(绝不阻断主流程)。
+  const designReviewMode = process.env.IH_DESIGN_REVIEW ?? 'off';
+  if (designReviewMode === 'auto' || designReviewMode === 'block') {
+    const dsStart = Date.now();
+    try {
+      const dsRoleDoc = readFileSync(join(pipeline, 'roles', 'design-soundness-agent.md'), 'utf8');
+      const dsPrompt = `${dsRoleDoc}\n\n# === 评审下面这份规约切片，按角色要求只输出 JSON findings ===\n\n${spec.specSlice}`;
+      const dsInvoke = makePhaseInvoke({ cwd: spec.projectDir, timeoutMs: 300_000 });
+      const r = await dsInvoke({
+        prompt: dsPrompt,
+        sessionId: randomUUID(),
+        resume: false,
+        onTraceLine: (line) => appendFileSync(join(runsDir, 'design-soundness-0.jsonl'), line + '\n'),
+      });
+      const anti = extractTestableAntiGoals(parseDesignFindings(extractJsonBlock(r.result)));
+      if (anti.length > 0) context.antiGoals = anti;
+      ictx.emit(
+        makeEvent({
+          ts: new Date(dsStart).toISOString(),
+          traceId: jobId,
+          op: 'design-soundness',
+          status: 'ok',
+          durationMs: Date.now() - dsStart,
+          payload: { mode: designReviewMode, antiGoals: anti.length, pendingHumanReview: designReviewMode === 'block' },
+        }),
+      );
+    } catch (e) {
+      // 降级:无反目标注入,主流程照常(新前置 phase 绝不拖垮既有 US)。
+      ictx.emit(
+        makeEvent({
+          ts: new Date(dsStart).toISOString(),
+          traceId: jobId,
+          op: 'design-soundness',
+          status: 'degraded',
+          durationMs: Date.now() - dsStart,
+          payload: { mode: designReviewMode, error: String(e).slice(0, 100) },
+        }),
+      );
+    }
+  }
 
   const traceCounters = new Map<string, number>();
   const runPhase = makeRunPhase({
