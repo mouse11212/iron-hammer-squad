@@ -174,6 +174,8 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
       });
       dsCost = r.costUsd ?? 0;
       const findings = parseDesignFindings(extractJsonBlock(r.result));
+      // 杠杆2-2a:design-soundness 跑过即持久化 findings(off 以外所有模式),供 2b epic 收口聚合。
+      writeFileSync(join(runsDir, 'design-findings.json'), JSON.stringify(findings, null, 2), 'utf8');
       // block 模式:读人工确认文件(人审后写,内容=确认保留的反目标 string[])。auto 无需确认。
       const confirmedPath = join(runsDir, 'design-confirmed.json');
       const confirmed =
@@ -193,7 +195,6 @@ export async function runInnerLoopJob(jobId: string, spec: InnerLoopJobSpec): Pr
       );
       if (decision.action === 'hold') {
         // block 无确认 → 把 findings 递人:写待审产物 + 人读交接,held(blocked-escalated)早返回,不进 test/dev。
-        writeFileSync(join(runsDir, 'design-findings.json'), JSON.stringify(findings, null, 2), 'utf8');
         const lines = [
           `# 设计合理性评审 · 待人审 (job ${jobId})`,
           '',
