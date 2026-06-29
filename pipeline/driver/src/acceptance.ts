@@ -55,3 +55,48 @@ export function aggregateAcceptanceItems(sources: FindingsSource[]): AcceptanceI
   }
   return items;
 }
+
+/** agent 对一条验收项的判定。 */
+export interface AcceptanceVerdict {
+  itemId: string;
+  tier: 'blocker' | 'advise' | 'pass';
+  evidence: string;   // 截图路径 / snapshot 摘要 / 观察
+  reason: string;
+}
+
+const VERDICT_TIERS = ['blocker', 'advise', 'pass'] as const;
+
+/**
+ * 解析 acceptance-agent 产的 verdict JSON 数组；非法即抛（带定位，不静默）。
+ * 契约严：顶层数组；每项 itemId 非空串、tier ∈ {blocker,advise,pass}、evidence/reason 为字符串。
+ */
+export function parseAcceptanceVerdicts(raw: string): AcceptanceVerdict[] {
+  let o: unknown;
+  try {
+    o = JSON.parse(raw);
+  } catch {
+    throw new Error('acceptance verdicts 不是合法 JSON');
+  }
+  if (!Array.isArray(o)) {
+    throw new Error('acceptance verdicts 必须是数组');
+  }
+  return o.map((item, i) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new Error(`acceptance verdicts[${i}] 必须是对象`);
+    }
+    const v = item as Record<string, unknown>;
+    if (typeof v.itemId !== 'string' || v.itemId.trim() === '') {
+      throw new Error(`acceptance verdicts[${i}].itemId 必须是非空字符串`);
+    }
+    if (typeof v.tier !== 'string' || !VERDICT_TIERS.includes(v.tier as (typeof VERDICT_TIERS)[number])) {
+      throw new Error(`acceptance verdicts[${i}].tier 必须是 blocker|advise|pass`);
+    }
+    if (typeof v.evidence !== 'string') {
+      throw new Error(`acceptance verdicts[${i}].evidence 必须是字符串`);
+    }
+    if (typeof v.reason !== 'string') {
+      throw new Error(`acceptance verdicts[${i}].reason 必须是字符串`);
+    }
+    return { itemId: v.itemId, tier: v.tier as AcceptanceVerdict['tier'], evidence: v.evidence, reason: v.reason };
+  });
+}
