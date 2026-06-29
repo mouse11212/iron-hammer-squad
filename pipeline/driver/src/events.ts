@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 // 可观测属 computational sensor(KB guides-and-sensors):确定、可测——故构造器纯、时钟注入,IO 落薄边界 sink。
 
 /** 操作类型:inner-loop 全链的关键操作。 */
-export type EventOp = 'phase' | 'gate' | 'squash' | 'integrate' | 'orchestrator-fix';
+export type EventOp = 'phase' | 'gate' | 'squash' | 'integrate' | 'orchestrator-fix' | 'design-soundness';
 
 /** phase 事件的角色。 */
 export type PhaseRole = 'test' | 'dev' | 'review';

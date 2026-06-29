@@ -14,6 +14,8 @@ export interface PromptContext {
   projectDir?: string;
   /** 评审角色产出 verdict 的文件路径。 */
   verdictPath?: string;
+  /** 杠杆1:design-soundness 评审确认的 testable 反目标(注入 test phase，写成确定性测试钉死"不发生")。 */
+  antiGoals?: string[];
 }
 
 export interface BuildPromptInput {
@@ -35,6 +37,13 @@ export function buildPhasePrompt(input: BuildPromptInput): string {
   parts.push('# 你的角色', roleDoc);
   parts.push('# 工程约定(必须遵守)', conventionsDoc);
   parts.push('# 本单元规约切片', context.specSlice);
+
+  if (context.antiGoals?.length) {
+    parts.push(
+      '# 反目标(design-soundness 评审产出，须各写一条确定性测试钉死其"不发生")',
+      context.antiGoals.map((a, i) => `${i + 1}. ${a}`).join('\n'),
+    );
+  }
 
   if (context.targetPaths?.length) {
     parts.push('# 目标路径', context.targetPaths.map((p) => `- ${p}`).join('\n'));

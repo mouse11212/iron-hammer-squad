@@ -40,4 +40,22 @@ describe('buildPhasePrompt（纯组合角色 spawn prompt）', () => {
     const p = buildPhasePrompt({ role: 'test', ...base });
     expect(p).not.toMatch(/must-fix 清单/);
   });
+
+  it('反目标(杠杆1):context.antiGoals 注入 prompt（逐条 + 反目标标记）', () => {
+    const p = buildPhasePrompt({
+      role: 'test',
+      ...base,
+      context: { ...base.context, antiGoals: ['答案不得在答题前可读', '静音也能答对'] },
+    });
+    expect(p).toContain('答案不得在答题前可读');
+    expect(p).toContain('静音也能答对');
+    expect(p).toMatch(/反目标/);
+  });
+
+  it('无 antiGoals（或空）时不含反目标区块', () => {
+    const p1 = buildPhasePrompt({ role: 'test', ...base });
+    expect(p1).not.toMatch(/反目标/);
+    const p2 = buildPhasePrompt({ role: 'test', ...base, context: { ...base.context, antiGoals: [] } });
+    expect(p2).not.toMatch(/反目标/);
+  });
 });
