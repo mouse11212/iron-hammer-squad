@@ -1,33 +1,32 @@
 ## 1. spec-coverage 纯核（纯，TDD + 变异门）
 
-- [ ] 1.1 RED：`spec-coverage.test.ts`——改 `src/acceptance.ts` 无进行中 change → `{ok:false, offenders:['...acceptance.ts']}`
-- [ ] 1.2 RED：改能力源码 + 同集含 `docs/openspec/changes/<id>/` → `{ok:true}`
-- [ ] 1.3 RED：仅改 test/角色 md/docs → `{ok:true}`（不触发）
-- [ ] 1.4 RED：仅改 `bin-*.ts`/`mcp-server.ts` → `{ok:true}`（非能力源码）
-- [ ] 1.5 RED：`// @spec-exempt: 理由` 非空 → 该文件豁免；空理由 → 仍违规
-- [ ] 1.6 GREEN：实现 `pipeline/driver/src/spec-coverage.ts` `gateSpecCoverage` + 类型 `SpecCoverageResult`
-- [ ] 1.7 把 `spec-coverage.ts` 纳入 driver 静态变异门 mutate 列表
+- [x] 1.1–1.5 RED：`spec-coverage.test.ts` 10 用例（无 change 违规 / 有 change 通过 / 仅 test·role·docs 不触发 / bin shim 不触发 / @spec-exempt 豁免与空理由）
+- [x] 1.6 GREEN：`pipeline/driver/src/spec-coverage.ts` `gateSpecCoverage` + `SpecCoverageResult`
+- [x] 1.7 `spec-coverage.ts` 纳入 driver 静态变异门 mutate 列表（stryker.conf.json）
 
-## 2. trace:check 一致校验（纯，TDD + 变异门）
+## 2. trace:check 一致校验（纯，TDD；tests 缺失降级警告）
 
-- [ ] 2.1 RED：`trace-check.test.ts`——完整链 → `{ok:true, broken:[]}`
-- [ ] 2.2 RED：spec 无 tests → `broken` 含 `spec-without-tests`，`ok:false`
-- [ ] 2.3 RED：spec 无 commit → `broken` 含 `spec-without-commit`，`ok:false`
-- [ ] 2.4 GREEN：在 `pipeline/metrics/src/weave-traces.ts`（或邻近纯模块）实现 `traceCheck(links): TraceCheckResult`
-- [ ] 2.5 `spec-coverage`/`trace-check` 纯逻辑入 metrics/driver 变异门 mutate 列表（对应包）
+- [x] 2.1–2.3 RED+GREEN：`trace-check.test.ts` 9 用例（完整链 / spec-without-tests→warnings / spec-without-commit→broken / missing-spec→broken / 多字段 / 多链 / warnings 不计入 ok / 枚举契约）
+- [x] 2.4 GREEN：`pipeline/metrics/src/trace-check.ts` `traceCheck`（broken/warnings 拆分；BOSS 06-30 裁决：tests=0 不阻断）
+- [x] 2.5 metrics 包无 stryker（E4 未配）→ 穷尽精确断言单测兜底（9 用例）
 
 ## 3. 物理拦截层（薄 IO，e2e 验证）
 
-- [ ] 3.1 `scripts/gate-spec-coverage`：读 `git diff --cached --name-only` → 调 `gateSpecCoverage` → 违规非零退出 + 打印 offenders
-- [ ] 3.2 `scripts/install-hooks.sh`：安装 `.git/hooks/pre-commit` 调 `scripts/gate-spec-coverage`（幂等、可重装）
-- [ ] 3.3 `bin-trace-check.ts` + `npm run trace:check`：weave 当前归档 → `traceCheck` → 断链非零退出 + 打印清单
-- [ ] 3.4 接进 harness green/pre-merge 门（`gates.ts` 或 `batchIntegrate`）：spec-coverage + trace-check 任一不过则不放行集成
+- [x] 3.1 `pipeline/driver/src/bin-spec-coverage.ts`（薄 IO：读暂存 + 内容 → gateSpecCoverage → 违规非零退出 + 修复提示）+ `scripts/gate-spec-coverage`（shell）
+- [x] 3.2 `scripts/install-hooks.sh`：安装 `.git/hooks/pre-commit`（幂等可重装）；已实证阻断
+- [x] 3.3 `pipeline/metrics/src/bin-trace-check.ts` + `npm run trace:check`（报告门：broken 决定 exit，warnings 不影响）
+- [x] 3.4 **按 X 裁决（KB 锚定）：spec-coverage 不接 inner-loop green**（Ashby 必要多样性 + 过度约束失效模式）；全仓覆盖靠 (a) pre-commit 钩子。trace-check 作报告门不接阻断（tests 派生局限 + prose capability）
 
 ## 4. 杀手验证（证物理拦截真生效）
 
-- [ ] 4.1 模拟"改 acceptance.ts 无 change"的暂存集 → 装好钩子后 `git commit` 被非零阻断（亲跑，留证据）
-- [ ] 4.2 回填杠杆1/2 规约后 `npm run trace:check` 跑绿（断链清零）
+- [x] 4.1 模拟"能力源 probe 无 change"暂存 → `git commit` 被钩子非零阻断（HEAD 未变，无垃圾 commit，亲跑留证）
+- [x] 4.2 `npm run trace:check` 跑绿（33 条链，broken=0；5 warnings 为历史归档 commit 无 test + prose capability，不阻断）
 
-## 5. 前置依赖（另立 change）
+## 5. 前置依赖（另立 change，已完成）
 
-- [ ] 5.1 回填 `acceptance` + 反目标管道 OpenSpec 规约（把现有 `acceptance.test.ts` 等挂 Scenario），门上线前完成——否则现有杠杆码被判孤儿。
+- [x] 5.1 回填 `acceptance` + 反目标管道 OpenSpec 规约——由 `2026-06-29-pipeline-backfill-lever-specs`（commit `c09a4d8`）完成
+
+## 6. spec 同步（KB 锚定 × 裁决）
+
+- [x] 6.1 traceability spec：traceCheck 的 spec-without-tests 降级 warnings（不计入 ok），加 missing-spec scenario + 报告门 scenario
+- [x] 6.2 spec-coverage-gate spec：Requirement 2 改为"主落点 pre-commit + 刻意不接 inner-loop"（Ashby / 过度约束 / 运行节奏① KB 锚点）

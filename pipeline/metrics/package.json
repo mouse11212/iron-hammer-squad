@@ -11,7 +11,8 @@
     "gate": "npm run lint && npm run typecheck && npm run test",
     "report": "tsx src/bin-report.ts",
     "report:archive": "tsx src/bin-archive.ts",
-    "weave": "tsx src/bin-weave.ts"
+    "weave": "tsx src/bin-weave.ts",
+    "trace:check": "tsx src/bin-trace-check.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
