@@ -128,15 +128,19 @@ harness 一切控制归两类，**缺一不可**（KB: topics/guides-and-sensors
 | 产品/澄清 Agent | gstack（/office-hours、/plan-ceo-review）、claude-obsidian | 需求澄清、产品概念、范围(含 out-of-scope)、用户画像、痛点 |
 | Bootstrap/初始化 Agent | OpenSpec（init/onboard）+ 自定义 bootstrap skill | 仓库骨架、CI/CD、devcontainer/Docker、基线测试 harness、CLAUDE.md/AGENTS.md、规约结构初始化 |
 | 架构 Agent | gstack（/plan-eng-review）+ OpenSpec（design.md） | 技术选型、组件选型、产品/系统架构、**NFR 定义**；架构决策固化进 design.md |
+| 规划/拆分 Agent（Planner）⊕新 | pev-loop Plan phase | Epic→US→task 拆分（**依赖 DAG + 执行顺序规划 + 合理分配**）；②规约轨触发 |
 | 规约 Agent（SoT 守门） | OpenSpec | 维护活规约；生成/校验 proposal、specs、design、tasks；`validate --strict` 守 GIVEN/WHEN/THEN 覆盖 |
-| UX/UI Agent | frontend-design、gstack（designer） | 风格、视觉、交互；**仅设计级校验**（风格一致性、a11y、视觉回归基线），不写功能测试 |
+| 设计合理性评审 Agent ⊕ | superpowers:brainstorming（可选） | **实现前**对抗评审规约合目的性（反目标穷举）；②规约轨触发 |
+| UX/UI Agent（系统级·全局风格 / US 级·单 US 实现，两触发点）⊕ | frontend-design、gstack（designer） | **系统级**=①立项轨定全局风格/视觉/交互规约（设计系统级）；**US 级**=③内循环轨做单 US 具体 UI（受系统级约束）；仅设计级校验（风格一致性、a11y、视觉回归基线），不写功能测试 |
 | 测试 Agent | superpowers（TDD/RED-GREEN-REFACTOR）、gstack（/qa 真实浏览器） | 内循环中**先于实现**设计功能/集成用例；执行测试；开 bug |
 | 开发 Agent | superpowers（writing-plans→executing-plans、TDD、worktree、subagent-driven dev） | 接口设计、实现、单测；worktree 内 RED-GREEN-REFACTOR |
 | 评审 Agent | superpowers（requesting/receiving-code-review）、gstack（/review） | 计划 review 与代码 review **分两遍**；可用 Adversarial Exploration |
+| 验收 Agent ⊕ | playwright（视觉+合目的性验收） | epic 收口的视觉 + 合目的性验收；④验收发布轨触发 |
 | 安全 Agent | gstack（/cso:OWASP+STRIDE） | 依赖供应链、密钥、沙箱策略、威胁建模；安全门禁 |
 | 发布/文档 Agent | gstack（/ship、doc engineer、/retro、/learn） | 构建、部署、回滚、ReleaseNote、使用手册、复盘与跨会话学习 |
 
 > 切分原则：gstack 管思考/审查/QA/安全/发布，superpowers 管 TDD 执行与分支纪律，OpenSpec 管真相源，frontend-design 管 UX，claude-obsidian 管知识库 grounding 与项目日志。skill 一律按需逐层披露。
+> ⊕ = 表外补充角色/本协议新增（change `2026-06-30-pipeline-request-dispatch-protocol` 回填，🔴 红线7 BOSS 2026-06-30 签）。**轨⑤ harness 自身工程轨**（改 `pipeline/*` 自身）为元层面，走 superpowers:SDD 或 TDD+OpenSpec（CLAUDE.md §5），不属本表产品 SDLC 角色。完整轨道分诊（7 轨 MECE + 13 角色对账 + 二级工件状态判定 + ≤40 行注入速查卡）见 `pipeline/guides/request-dispatch-protocol.md`。
 
 ### 4.3 规则边界：Always / Ask-First / Never（v3 缺 Ask-First）
 
@@ -152,6 +156,7 @@ harness 一切控制归两类，**缺一不可**（KB: topics/guides-and-sensors
 - **OpenSpec 活规约是唯一真相源**；产品概念、US、task、测试用例、UX 设计皆派生，必须能 diff 回规约。
 - 双向追溯链：`产品概念 → spec → US → task → 测试用例 → commit → 构建 → 部署 → ReleaseNote`，每节点带唯一 ID，可正反向回溯。
 - 一致性校验机制化：以"对规约 delta 的符合性检查"通过 `openspec validate --strict`；不符则生成整改任务回写直到对账一致。规约版本化；任何规约变更触发人类门禁。
+- **会话级一致性 check 门**（本协议新增，change `2026-06-30-pipeline-request-dispatch-protocol`）：在②规约轨，任一派生物（Epic/US/task/规约）产出后，校验**需求澄清→需求设计→US/task 前后一致**（跨产物层级对账）；不一致触发整改，不靠感觉判"差不多一致"。区别于既有"规约 delta 符合性"（`openspec validate --strict`，spec 内部一致），本门覆盖**跨产物层级**的前后一致（BOSS 强调的"前后一致"链早期段）。
 
 ### 4.5 门禁、预算与停止条件
 

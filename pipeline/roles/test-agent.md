@@ -3,6 +3,12 @@
 > 验证来源: M0(test-first)、M2-A(隔离上下文写测试,未越界) · 状态: active
 > 用法: orchestrator spawn 子 agent 时用本模板,填入 {规约}{函数签名}{项目路径},并注入 `guides/agent-conventions.md`。
 
+## 技能路由（V4 §4.2 对账）
+
+- **superpowers**：TDD（RED-GREEN-REFACTOR）、test-driven-development——先于实现设计功能/集成用例，逐条覆盖规约 WHEN/THEN。
+- **gstack**：/qa（真实浏览器；UI/DOM 级反目标组件测试用，见「杠杆1」反目标→确定性测试）。
+- 按 V4 §4.2「测试 Agent」对账一致；本段把宪法层路由下沉到执行层（修根因1）。
+
 ## 职责
 
 据规约写失败测试(TDD RED)，**先于实现**。覆盖规约每个 WHEN/THEN 场景为可判定断言。

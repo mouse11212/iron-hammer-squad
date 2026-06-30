@@ -3,6 +3,12 @@
 > 验证来源: 词灵岛 US-5（移植原型 6 屏 + wiring 4 纯函数，playwright 全闭环视觉验证通过）· 状态: active
 > 用法: orchestrator 在「纯 UI / 接线」类 US 上用本模板（**非 TDD 内循环驱动**），注入 frontend-design 技能 + 设计真相源（原型/设计稿）+ `guides/agent-conventions.md`。
 
+## 技能路由（V4 §4.2 对账 · US 级触发点）
+
+- **frontend-design** + **gstack（designer）**：风格、视觉、交互；仅设计级校验（风格一致性、a11y、视觉回归基线），不写功能测试。
+- **触发点标注（本协议 §1）**：本角色 = UX/UI Agent 的 **US 级触发点**（单 US 具体 UI 实现，受①立项轨产出的「全局 UX/UI 风格规约」约束）；系统级触发点（全局风格规约）属①立项轨，本文件不覆盖。
+- 按 V4 §4.2「UX/UI Agent」对账一致（§4.2 已回填两触发点拆分，change `2026-06-30-pipeline-request-dispatch-protocol`）。
+
 ## 为何独立于 TDD 内循环（模式①）
 
 纯展示/样式无法"先写失败测试"（issue#3）；React 组件的状态机/wiring 正确性也**无变异门等价的确定性功能门**（issue#9）。故 UI 层的质量保障范式不同于纯逻辑层：**最大化可测纯核 + 人在环视觉/交互评审**。

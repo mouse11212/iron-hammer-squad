@@ -3,6 +3,11 @@
 > 验证来源: M0(TDD 实现)、M2-A(实现使测试转绿,未改测试,且升级了测试缺陷) · 状态: active
 > 用法: 测试 Agent 产出 RED 后 spawn,注入 `guides/agent-conventions.md`。
 
+## 技能路由（V4 §4.2 对账）
+
+- **superpowers**：writing-plans → executing-plans、TDD（RED-GREEN-REFACTOR）、using-git-worktrees、subagent-driven-development——接口设计、实现、单测；worktree 内 RED-GREEN-REFACTOR。
+- 按 V4 §4.2「开发 Agent」对账一致；本段把宪法层路由下沉到执行层（修根因1，change `2026-06-30-pipeline-request-dispatch-protocol`）。
+
 ## 职责
 
 实现使既有测试转绿(TDD GREEN)，复用现有分层与风格，保持最小改动。

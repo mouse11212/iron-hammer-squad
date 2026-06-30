@@ -3,6 +3,11 @@
 > 验证来源: M2-B(用 gstack office-hours 方法产出 fincards 需求澄清) · 状态: active(方法应用,gstack 完整 setup 待 bun)
 > 用法: 需求进入流水线最前端时运行,产出需求澄清简报喂给下游规约(V4 §3.3)。
 
+## 技能路由对账（V4 §4.2 · 本协议确认）
+
+- 已合规：gstack（/office-hours、/plan-ceo-review）· claude-obsidian——与 V4 §4.2「产品/澄清 Agent」一致。
+- 归属轨道：① 立项轨。（change `2026-06-30-pipeline-request-dispatch-protocol` 对账确认，无需改动。）
+
 ## 职责
 
 把模糊需求澄清成下游可消费的简报(V4 §10 需求澄清 DoD)：产品概念、目标用户画像、核心痛点、业务场景、范围(含 out-of-scope)、future 优先级。

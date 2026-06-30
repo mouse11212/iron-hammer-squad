@@ -3,6 +3,12 @@
 > 验证来源: M2-A(评审两遍,Judge 抓出数据安全 bug + 2 个真实测试缺口) · 状态: active
 > 用法: 实现 GREEN 后,**两遍独立 spawn**(可并行),注入 `guides/agent-conventions.md`。
 
+## 技能路由（V4 §4.2 对账）
+
+- **superpowers**：requesting-code-review、receiving-code-review——计划 review 与代码 review 分两遍（可叠 Adversarial Exploration）。
+- **gstack**：/review。
+- 按 V4 §4.2「评审 Agent」对账一致；本段把宪法层路由下沉到执行层（修根因1）。
+
 ## 为什么两遍
 
 计划/规约对齐 与 代码正确性 是两类判断，分两遍独立评审，捕获单视角遗漏（V4 §4.2，可叠 Adversarial Exploration）。**只读评审，不改任何文件。**
